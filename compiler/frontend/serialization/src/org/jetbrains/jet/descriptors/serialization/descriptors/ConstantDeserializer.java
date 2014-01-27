@@ -39,6 +39,19 @@ public interface ConstantDeserializer {
         }
     };
 
+    ConstantDeserializer EMPTY = new ConstantDeserializer() {
+        @Nullable
+        @Override
+        public CompileTimeConstant<?> loadPropertyConstant(
+                @NotNull ClassOrPackageFragmentDescriptor container,
+                @NotNull ProtoBuf.Callable proto,
+                @NotNull NameResolver nameResolver,
+                @NotNull AnnotatedCallableKind kind
+        ) {
+            return null;
+        }
+    };
+
     @Nullable
     CompileTimeConstant<?> loadPropertyConstant(
             @NotNull ClassOrPackageFragmentDescriptor container,

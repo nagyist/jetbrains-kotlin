@@ -33,6 +33,20 @@ public interface Deserializers {
         }
     };
 
+    Deserializers EMPTY = new Deserializers() {
+        @NotNull
+        @Override
+        public AnnotationDeserializer getAnnotationDeserializer() {
+            return AnnotationDeserializer.EMPTY;
+        }
+
+        @NotNull
+        @Override
+        public ConstantDeserializer getConstantDeserializer() {
+            return ConstantDeserializer.EMPTY;
+        }
+    };
+
     @NotNull
     AnnotationDeserializer getAnnotationDeserializer();
 

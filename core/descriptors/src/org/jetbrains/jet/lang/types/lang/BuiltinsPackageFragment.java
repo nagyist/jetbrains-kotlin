@@ -38,7 +38,7 @@ class BuiltinsPackageFragment extends PackageFragmentDescriptorImpl {
         packageFragmentProvider = new BuiltinsPackageFragmentProvider();
 
         // TODO: support annotations
-        members = new DeserializedPackageMemberScope(storageManager, this, Deserializers.UNSUPPORTED, MemberFilter.ALWAYS_TRUE,
+        members = new DeserializedPackageMemberScope(storageManager, this, Deserializers.EMPTY, MemberFilter.ALWAYS_TRUE,
                                                      new BuiltInsDescriptorFinder(storageManager), loadPackage(), nameResolver);
     }
 
@@ -109,7 +109,7 @@ class BuiltinsPackageFragment extends PackageFragmentDescriptorImpl {
 
         public BuiltInsDescriptorFinder(@NotNull StorageManager storageManager) {
             // TODO: support annotations
-            super(storageManager, Deserializers.UNSUPPORTED, packageFragmentProvider);
+            super(storageManager, Deserializers.EMPTY, packageFragmentProvider);
 
             classNames = storageManager.createLazyValue(new Function0<Collection<Name>>() {
                 @Override
