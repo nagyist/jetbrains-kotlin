@@ -16,10 +16,13 @@
 
 package kotlin
 
-public object Unit {
-    [deprecated("Use Unit instead")]
-    public val VALUE: Unit
-            get() = this
+private open class OldUnit() {
+    class object {
+        deprecated("Use Unit instead")
+        public val VALUE: Unit = Unit
+    }
+}
 
+public object Unit : OldUnit() {
     override fun toString() = "Unit.VALUE"
 }
