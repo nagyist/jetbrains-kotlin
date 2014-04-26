@@ -16,7 +16,7 @@
 
 package kotlin
 
-// Temporary class for backward compatibility
+// Temporary class for backward compatibility with Java code
 private open class OldUnit() {
     class object {
         deprecated("Use Unit instead")
@@ -25,5 +25,9 @@ private open class OldUnit() {
 }
 
 public object Unit : OldUnit() {
-    override fun toString() = "Unit"
+    deprecated("Use Unit instead")
+    public val VALUE: Unit
+            get() = this
+
+    override fun toString() = "Unit.VALUE"
 }
