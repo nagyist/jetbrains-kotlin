@@ -16,10 +16,10 @@
 
 package kotlin
 
-public class Unit private() {
-    override fun toString() = "Unit.VALUE"
+public object Unit {
+    [deprecated("Use Unit instead")]
+    public val VALUE: Unit
+            get() = this
 
-    class object {
-        public val VALUE: Unit = Unit()
-    }
+    override fun toString() = "Unit.VALUE"
 }
