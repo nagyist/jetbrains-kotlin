@@ -49,7 +49,6 @@ import javax.inject.Inject;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 
 import static org.jetbrains.jet.lang.diagnostics.Errors.NOT_A_CLASS;
 import static org.jetbrains.jet.lang.diagnostics.Errors.NO_CONSTRUCTOR;
@@ -285,7 +284,8 @@ public class CallResolver {
 
                 Call call = new CallTransformer.CallForImplicitInvoke(
                         context.call.getExplicitReceiver(), expressionReceiver, context.call);
-                TracingStrategyForInvoke tracingForInvoke = new TracingStrategyForInvoke(calleeExpression, call, calleeType);
+                TracingStrategyForInvoke tracingForInvoke = new TracingStrategyForInvoke(
+                        calleeExpression, call, calleeType);
                 return resolveCallForInvoke(context.replaceCall(call), tracingForInvoke);
             }
             else {
@@ -325,6 +325,8 @@ public class CallResolver {
             @NotNull CallTransformer<D, F> callTransformer,
             @NotNull TracingStrategy tracing
     ) {
+        tracing.bindCall(context.trace, context.call);
+
         OverloadResolutionResultsImpl<F> results = null;
         TemporaryBindingTrace traceToResolveCall = TemporaryBindingTrace.create(context.trace, "trace to resolve call", context.call);
         CallKey callKey = CallResolverUtil.createCallKey(context);
