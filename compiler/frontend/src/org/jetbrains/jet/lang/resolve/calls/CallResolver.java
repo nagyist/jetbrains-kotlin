@@ -69,6 +69,8 @@ public class CallResolver {
     private CandidateResolver candidateResolver;
     @NotNull
     private ArgumentTypeResolver argumentTypeResolver;
+    @NotNull
+    private CallCompleter callCompleter;
     @Inject
     public void setExpressionTypingServices(@NotNull ExpressionTypingServices expressionTypingServices) {
         this.expressionTypingServices = expressionTypingServices;
@@ -87,6 +89,11 @@ public class CallResolver {
     @Inject
     public void setArgumentTypeResolver(@NotNull ArgumentTypeResolver argumentTypeResolver) {
         this.argumentTypeResolver = argumentTypeResolver;
+    }
+
+    @Inject
+    public void setCallCompleter(@NotNull CallCompleter callCompleter) {
+        this.callCompleter = callCompleter;
     }
 
     @NotNull
