@@ -486,4 +486,20 @@ public class ExpressionTypingUtils {
     public static boolean isUnaryExpressionDependentOnExpectedType(@NotNull JetUnaryExpression expression) {
         return expression.getOperationReference().getReferencedNameElementType() == JetTokens.EXCLEXCL;
     }
+
+    public static boolean dependsOnExpectedType(@Nullable JetExpression expression) {
+        JetExpression expr = JetPsiUtil.deparenthesize(expression, false);
+        if (expr == null) return false;
+
+        if (expr instanceof JetBinaryExpressionWithTypeRHS) {
+            return false;
+        }
+        if (expr instanceof JetBinaryExpression) {
+            return isBinaryExpressionDependentOnExpectedType((JetBinaryExpression) expr);
+        }
+        if (expr instanceof JetUnaryExpression) {
+            return isUnaryExpressionDependentOnExpectedType((JetUnaryExpression) expr);
+        }
+        return true;
+    }
 }
