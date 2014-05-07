@@ -16,7 +16,7 @@
 
 package kotlin
 
-public class Unit private () {
+public open class Unit private () {
     override fun toString() = "Unit.VALUE"
 
     class object : Unit() {
