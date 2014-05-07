@@ -18,17 +18,14 @@ package org.jetbrains.jet.plugin.completion.smart
 
 import com.intellij.codeInsight.lookup.LookupElement
 import org.jetbrains.jet.lang.types.JetType
-import org.jetbrains.jet.lang.types.TypeUtils
 import org.jetbrains.jet.lang.types.lang.KotlinBuiltIns
 import org.jetbrains.jet.lang.descriptors.ClassDescriptor
-import org.jetbrains.jet.plugin.completion.DescriptorLookupConverter
 import org.jetbrains.jet.renderer.DescriptorRenderer
 import com.intellij.codeInsight.completion.InsertHandler
 import org.jetbrains.jet.lang.resolve.DescriptorUtils
 import org.jetbrains.jet.lang.descriptors.Modality
 import org.jetbrains.jet.lang.descriptors.ClassKind
 import org.jetbrains.jet.plugin.codeInsight.ImplementMethodsHandler
-import org.jetbrains.jet.lang.descriptors.ConstructorDescriptor
 import com.intellij.codeInsight.lookup.LookupElementDecorator
 import com.intellij.codeInsight.lookup.LookupElementPresentation
 import com.intellij.codeInsight.completion.InsertionContext
@@ -36,10 +33,16 @@ import org.jetbrains.jet.lang.resolve.BindingContext
 import org.jetbrains.jet.plugin.project.ResolveSessionForBodies
 import org.jetbrains.jet.plugin.completion.handlers.JetFunctionInsertHandler
 import org.jetbrains.jet.plugin.completion.*
+import org.jetbrains.jet.plugin.completion.handlers.CaretPosition
+import org.jetbrains.jet.lang.descriptors.DeclarationDescriptor
+import org.jetbrains.jet.lang.descriptors.Visibilities
+import org.jetbrains.jet.plugin.util.makeNotNullable
 
-class TypeInstantiationItems(val bindingContext: BindingContext, val resolveSession: ResolveSessionForBodies) {
+class TypeInstantiationItems(val bindingContext: BindingContext,
+                             val resolveSession: ResolveSessionForBodies,
+                             val visibilityFilter: (DeclarationDescriptor) -> Boolean) {
     public fun addToCollection(collection: MutableCollection<LookupElement>, expectedInfos: Collection<ExpectedInfo>) {
-        val expectedInfosGrouped: Map<JetType, List<ExpectedInfo>> = expectedInfos.groupBy { TypeUtils.makeNotNullable(it.`type`) }
+        val expectedInfosGrouped: Map<JetType, List<ExpectedInfo>> = expectedInfos.groupBy { it.`type`.makeNotNullable() }
         for ((jetType, types) in expectedInfosGrouped) {
             val tail = mergeTails(types.map { it.tail })
             addToCollection(collection, jetType, tail)
@@ -51,9 +54,18 @@ class TypeInstantiationItems(val bindingContext: BindingContext, val resolveSess
 
         val classifier = jetType.getConstructor().getDeclarationDescriptor()
         if (!(classifier is ClassDescriptor)) return
-        //TODO: check for constructor's visibility
 
-        var lookupElement = DescriptorLookupConverter.createLookupElement(resolveSession, bindingContext, classifier)
+        val isAbstract = classifier.getModality() == Modality.ABSTRACT
+        val allConstructors = classifier.getConstructors()
+        val visibleConstructors = allConstructors.filter {
+            if (isAbstract)
+                visibilityFilter(it) || it.getVisibility() == Visibilities.PROTECTED
+            else
+                visibilityFilter(it)
+        }
+        if (allConstructors.isNotEmpty() && visibleConstructors.isEmpty()) return
+
+        var lookupElement = createLookupElement(classifier, resolveSession, bindingContext)
 
         var lookupString = lookupElement.getLookupString()
 
@@ -62,7 +74,7 @@ class TypeInstantiationItems(val bindingContext: BindingContext, val resolveSess
 
         val insertHandler: InsertHandler<LookupElement>
         val typeText = DescriptorUtils.getFqName(classifier).toString() + DescriptorRenderer.SOURCE_CODE.renderTypeArguments(typeArgs)
-        if (classifier.getModality() == Modality.ABSTRACT) {
+        if (isAbstract) {
             val constructorParenthesis = if (classifier.getKind() != ClassKind.TRAIT) "()" else ""
             itemText += constructorParenthesis
             itemText = "object: " + itemText + "{...}"
@@ -83,14 +95,13 @@ class TypeInstantiationItems(val bindingContext: BindingContext, val resolveSess
         else {
             //TODO: when constructor has one parameter of lambda type with more than one parameter, generate special additional item
             itemText += "()"
-            val constructors = classifier.getConstructors()
             val baseInsertHandler =
-                    if (constructors.size == 0)
+                    (if (visibleConstructors.size == 0)
                         JetFunctionInsertHandler.NO_PARAMETERS_HANDLER
-                    else if (constructors.size == 1)
-                        DescriptorLookupConverter.getDefaultInsertHandler(constructors.first())!!
+                    else if (visibleConstructors.size == 1)
+                        DescriptorLookupConverter.getDefaultInsertHandler(visibleConstructors.single())!!
                     else
-                        JetFunctionInsertHandler.WITH_PARAMETERS_HANDLER
+                        JetFunctionInsertHandler.WITH_PARAMETERS_HANDLER) as JetFunctionInsertHandler
             insertHandler = object : InsertHandler<LookupElement> {
                 override fun handleInsert(context: InsertionContext, item: LookupElement) {
                     context.getDocument().replaceString(context.getStartOffset(), context.getTailOffset(), typeText)
@@ -101,7 +112,10 @@ class TypeInstantiationItems(val bindingContext: BindingContext, val resolveSess
                     shortenReferences(context, context.getStartOffset(), context.getTailOffset())
                 }
             }
-            if ((baseInsertHandler as JetFunctionInsertHandler).lambdaInfo != null) {
+            if (baseInsertHandler.caretPosition == CaretPosition.IN_BRACKETS) {
+                lookupElement = lookupElement.keepOldArgumentListOnTab()
+            }
+            if (baseInsertHandler.lambdaInfo != null) {
                 lookupElement.putUserData(JetCompletionCharFilter.ACCEPT_OPENING_BRACE, true)
             }
         }
