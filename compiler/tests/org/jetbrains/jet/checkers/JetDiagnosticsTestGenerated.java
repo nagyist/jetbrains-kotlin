@@ -6258,6 +6258,11 @@ public class JetDiagnosticsTestGenerated extends AbstractJetDiagnosticsTest {
                     doTest("compiler/testData/diagnostics/tests/resolve/nestedCalls/analyzeUnmappedArguments.kt");
                 }
                 
+                @TestMetadata("argumentsInParentheses.kt")
+                public void testArgumentsInParentheses() throws Exception {
+                    doTest("compiler/testData/diagnostics/tests/resolve/nestedCalls/argumentsInParentheses.kt");
+                }
+                
                 @TestMetadata("completeTypeInferenceForNestedInNoneApplicable.kt")
                 public void testCompleteTypeInferenceForNestedInNoneApplicable() throws Exception {
                     doTest("compiler/testData/diagnostics/tests/resolve/nestedCalls/completeTypeInferenceForNestedInNoneApplicable.kt");
