@@ -19,18 +19,20 @@ package org.jetbrains.jet.codegen.state;
 import com.intellij.openapi.project.Project;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.jetbrains.jet.codegen.ClassBuilderFactory;
-import org.jetbrains.jet.codegen.ClassBuilderMode;
-import org.jetbrains.jet.codegen.ClassFileFactory;
-import org.jetbrains.jet.codegen.SamWrapperClasses;
+import org.jetbrains.jet.codegen.*;
 import org.jetbrains.jet.codegen.binding.CodegenBinding;
+import org.jetbrains.jet.codegen.inline.InlineCodegenUtil;
 import org.jetbrains.jet.codegen.intrinsics.IntrinsicMethods;
+import org.jetbrains.jet.lang.descriptors.ModuleDescriptor;
+import org.jetbrains.jet.lang.descriptors.PackageFragmentDescriptor;
 import org.jetbrains.jet.lang.descriptors.ScriptDescriptor;
 import org.jetbrains.jet.lang.psi.JetClassOrObject;
 import org.jetbrains.jet.lang.psi.JetFile;
+import org.jetbrains.jet.lang.reflect.ReflectionTypes;
 import org.jetbrains.jet.lang.resolve.BindingContext;
 import org.jetbrains.jet.lang.resolve.BindingTrace;
 import org.jetbrains.jet.lang.resolve.DelegatingBindingTrace;
+import org.jetbrains.jet.lang.types.lang.KotlinBuiltIns;
 
 import java.util.List;
 
@@ -96,14 +98,16 @@ public class GenerationState {
     @Nullable
     private List<ScriptDescriptor> earlierScriptsForReplInterpreter;
 
+    private final JvmFunctionImplTypes functionImplTypes;
+
     public GenerationState(
             @NotNull Project project,
             @NotNull ClassBuilderFactory builderFactory,
             @NotNull BindingContext bindingContext,
-            @NotNull List<JetFile> files,
-            boolean inlineEnabled
+            @NotNull List<JetFile> files
     ) {
-        this(project, builderFactory, Progress.DEAF, bindingContext, files, true, false, GenerateClassFilter.GENERATE_ALL, inlineEnabled);
+        this(project, builderFactory, Progress.DEAF, bindingContext, files, true, false, GenerateClassFilter.GENERATE_ALL,
+             InlineCodegenUtil.DEFAULT_INLINE_FLAG);
     }
 
     public GenerationState(
@@ -123,18 +127,35 @@ public class GenerationState {
         this.classBuilderMode = builderFactory.getClassBuilderMode();
         this.inlineEnabled = inlineEnabled;
 
-        bindingTrace = new DelegatingBindingTrace(bindingContext, "trace in GenerationState");
+        this.bindingTrace = new DelegatingBindingTrace(bindingContext, "trace in GenerationState");
         this.bindingContext = bindingTrace.getBindingContext();
 
-        this.typeMapper = new JetTypeMapper(bindingTrace, classBuilderMode);
+        this.typeMapper = new JetTypeMapper(this.bindingContext, classBuilderMode);
 
         this.intrinsics = new IntrinsicMethods();
-        this.classFileFactory = new ClassFileFactory(this);
-        this.classFileFactory.setBuilderFactory(builderFactory);
+        this.classFileFactory = new ClassFileFactory(this, builderFactory);
 
         this.generateNotNullAssertions = generateNotNullAssertions;
         this.generateNotNullParamAssertions = generateNotNullParamAssertions;
         this.generateClassFilter = generateClassFilter;
+
+        ReflectionTypes reflectionTypes = new ReflectionTypes(getAnyModule());
+        this.functionImplTypes = new JvmFunctionImplTypes(reflectionTypes);
+    }
+
+    @NotNull
+    private ModuleDescriptor getAnyModule() {
+        // TODO: this shouldn't be happening once we have modules in the compiler (there simply will be a ModuleDescriptor instance here)
+
+        if (files.isEmpty()) {
+            // This is a hackish workaround for this code not to fail when invoked for an empty file list. Technically it doesn't matter
+            // which module we return here: if we're not compiling anything, we should never reach a point where we need this module
+            return KotlinBuiltIns.getInstance().getBuiltInsModule();
+        }
+
+        PackageFragmentDescriptor descriptor = bindingContext.get(BindingContext.FILE_TO_PACKAGE_FRAGMENT, files.get(0));
+        assert descriptor != null : "File is not under any module: " + files.get(0);
+        return descriptor.getContainingDeclaration();
     }
 
     @NotNull
@@ -195,8 +216,14 @@ public class GenerationState {
         return generateNotNullParamAssertions;
     }
 
+    @NotNull
     public GenerateClassFilter getGenerateDeclaredClassFilter() {
         return generateClassFilter;
+    }
+
+    @NotNull
+    public JvmFunctionImplTypes getJvmFunctionImplTypes() {
+        return functionImplTypes;
     }
 
     public boolean isInlineEnabled() {
@@ -206,8 +233,7 @@ public class GenerationState {
     public void beforeCompile() {
         markUsed();
 
-        //noinspection unchecked
-        CodegenBinding.initTrace(getBindingTrace(), getFiles(), getGenerateDeclaredClassFilter());
+        CodegenBinding.initTrace(this);
     }
 
     private void markUsed() {
