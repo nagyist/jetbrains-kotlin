@@ -1818,7 +1818,6 @@ public class ExpressionCodegen extends JetVisitor<StackValue, StackValue> implem
             int flags = AsmUtil.getVisibilityForSpecialPropertyBackingField(propertyDescriptor, isDelegatedProperty);
             skipPropertyAccessors = (flags & ACC_PRIVATE) == 0 || methodKind == MethodKind.SYNTHETIC_ACCESSOR || methodKind == MethodKind.INITIALIZER;
             if (!skipPropertyAccessors) {
-                //noinspection ConstantConditions
                 propertyDescriptor = (PropertyDescriptor) backingFieldContext.getAccessor(propertyDescriptor, true, delegateType);
             }
             isStatic = true;
@@ -1872,7 +1871,6 @@ public class ExpressionCodegen extends JetVisitor<StackValue, StackValue> implem
         }
 
         String name;
-        //noinspection ConstantConditions
         if (propertyDescriptor.getContainingDeclaration() == backingFieldContext.getContextDescriptor()) {
             assert backingFieldContext instanceof FieldOwnerContext : "Actual context is " + backingFieldContext + " but should be instance of FieldOwnerContext" ;
             name = ((FieldOwnerContext) backingFieldContext).getFieldName(propertyDescriptor, isDelegatedProperty);
@@ -2175,7 +2173,7 @@ public class ExpressionCodegen extends JetVisitor<StackValue, StackValue> implem
                 }
                 else {
                     Type classType = asmTypeForScriptDescriptor(bindingContext, receiver.getDeclarationDescriptor());
-                    String fieldName = getParentScriptCodegen().getScriptFieldName(receiver.getDeclarationDescriptor());
+                    String fieldName = scriptContext.getScriptFieldName(receiver.getDeclarationDescriptor());
                     result.put(currentScriptType, v);
                     StackValue.field(classType, currentScriptType, fieldName, false).put(classType, v);
                 }
@@ -3894,18 +3892,6 @@ The "returned" value of try expression with no finally is either the last expres
     @Override
     public String toString() {
         return context.getContextDescriptor().toString();
-    }
-
-    @NotNull
-    private ScriptCodegen getParentScriptCodegen() {
-        MemberCodegen<?> codegen = parentCodegen;
-        while (codegen != null) {
-            if (codegen instanceof ScriptCodegen) {
-                return (ScriptCodegen) codegen;
-            }
-            codegen = codegen.getParentCodegen();
-        }
-        throw new IllegalStateException("Script codegen should be present in codegen tree");
     }
 
     @NotNull
