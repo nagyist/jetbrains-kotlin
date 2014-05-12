@@ -31,13 +31,10 @@ import org.jetbrains.jet.lang.descriptors.DeclarationDescriptor
 import org.jetbrains.jet.lang.descriptors.CallableDescriptor
 import org.jetbrains.jet.plugin.refactoring.JetRefactoringBundle
 import org.jetbrains.jet.lang.cfg.pseudocode.PseudocodeUtil
-import org.jetbrains.jet.plugin.util.MaybeValue
-import org.jetbrains.jet.plugin.util.Maybe
 import org.jetbrains.jet.lang.psi.psiUtil.isInsideOf
 import java.util.HashSet
 import org.jetbrains.jet.lang.cfg.pseudocode.WriteValueInstruction
 import org.jetbrains.jet.lang.descriptors.VariableDescriptor
-import org.jetbrains.jet.plugin.util.MaybeError
 import org.jetbrains.jet.lang.psi.psiUtil.appendElement
 import org.jetbrains.jet.plugin.refactoring.createTempCopy
 import org.jetbrains.jet.lang.psi.psiUtil.getParentByType
@@ -86,9 +83,20 @@ import java.util.Collections
 import com.intellij.psi.PsiNamedElement
 import org.jetbrains.jet.lang.descriptors.impl.LocalVariableDescriptor
 import org.jetbrains.jet.lang.types.ErrorUtils
+import org.jetbrains.jet.lang.psi.JetTypeParameter
+import org.jetbrains.jet.lang.psi.JetTypeConstraint
+import org.jetbrains.jet.lang.descriptors.TypeParameterDescriptor
+import org.jetbrains.jet.utils.DFS
+import org.jetbrains.jet.utils.DFS.Neighbors
+import org.jetbrains.jet.utils.DFS.VisitedWithSet
+import org.jetbrains.jet.utils.DFS.CollectingNodeHandler
+import org.jetbrains.jet.lang.resolve.BindingContextUtils
 import org.jetbrains.jet.plugin.caches.resolve.getLazyResolveSession
 import org.jetbrains.jet.plugin.project.AnalyzerFacadeWithCache
 import org.jetbrains.jet.lang.diagnostics.Errors
+import org.jetbrains.jet.lang.psi.JetTypeReference
+import org.jetbrains.jet.lang.psi.JetTypeParameterListOwner
+import org.jetbrains.jet.plugin.refactoring.extractFunction.AnalysisResult.Status
 import org.jetbrains.jet.lang.descriptors.FunctionDescriptor
 
 private val DEFAULT_FUNCTION_NAME = "myFun"
@@ -136,13 +144,16 @@ private fun List<Instruction>.analyzeControlFlow(
         bindingContext: BindingContext,
         parameters: Set<Parameter>,
         inferredType: JetType?
-): Maybe<ControlFlow, String> {
+): Pair<ControlFlow, String?> {
     val outParameters = parameters.filterTo(HashSet<Parameter>()) { it.mirrorVarName != null }
 
     if (outParameters.size > 1) {
         val outValuesStr = outParameters.map { it.argumentText }.sort().makeString(separator = "\n")
 
-        return MaybeError("${JetRefactoringBundle.message("selected.code.fragment.has.multiple.output.values")!!}\n$outValuesStr")
+        return Pair(
+                DefaultControlFlow,
+                "${JetRefactoringBundle.message("selected.code.fragment.has.multiple.output.values")!!}\n$outValuesStr"
+        )
     }
 
     val exitPoints = getExitPoints()
@@ -157,12 +168,11 @@ private fun List<Instruction>.analyzeControlFlow(
             is AbstractJumpInstruction -> {
                 val element = it.getElement()
                 if (element is JetReturnExpression
-                        || element is JetBreakExpression
-                        || element is JetContinueExpression
-                        || element is JetThrowExpression) {
+                || element is JetBreakExpression
+                || element is JetContinueExpression) {
                     jumpExits.add(it)
                 }
-                else {
+                else if (element !is JetThrowExpression) {
                     defaultExits.add(it)
                 }
             }
@@ -178,19 +188,21 @@ private fun List<Instruction>.analyzeControlFlow(
 
     if (outParameters.isNotEmpty()) {
         if (hasMeaningfulType || valuedReturnExits.isNotEmpty() || jumpExits.isNotEmpty()) {
-            return MaybeError(JetRefactoringBundle.message("selected.code.fragment.has.output.values.and.exit.points")!!)
+            return Pair(DefaultControlFlow, JetRefactoringBundle.message("selected.code.fragment.has.output.values.and.exit.points")!!)
         }
 
-        return MaybeValue(ParameterUpdate(outParameters.first()))
+        return Pair(ParameterUpdate(outParameters.first()), null)
     }
 
-    val multipleExitsError =
-            MaybeError<ControlFlow, String>(JetRefactoringBundle.message("selected.code.fragment.has.multiple.exit.points")!!)
+    val multipleExitsError = Pair(
+            DefaultControlFlow,
+            JetRefactoringBundle.message("selected.code.fragment.has.multiple.exit.points")!!
+    )
 
     if (hasMeaningfulType) {
         if (valuedReturnExits.isNotEmpty() || jumpExits.isNotEmpty()) return multipleExitsError
 
-        return MaybeValue(ExpressionEvaluation(inferredType!!))
+        return Pair(ExpressionEvaluation(inferredType!!), null)
     }
 
     if (valuedReturnExits.isNotEmpty()) {
@@ -200,22 +212,22 @@ private fun List<Instruction>.analyzeControlFlow(
             if (valuedReturnExits.size != 1) return multipleExitsError
 
             val element = valuedReturnExits.first!!.getElement()
-            return MaybeValue(ConditionalJump(listOf(element), element))
+            return Pair(ConditionalJump(listOf(element), element), null)
         }
 
         if (!valuedReturnExits.checkEquivalence(false)) return multipleExitsError
-        return MaybeValue(ExpressionEvaluationWithCallSiteReturn(valuedReturnExits.getResultType(bindingContext)))
+        return Pair(ExpressionEvaluationWithCallSiteReturn(valuedReturnExits.getResultType(bindingContext)), null)
     }
 
     if (jumpExits.isNotEmpty()) {
         if (!jumpExits.checkEquivalence(true)) return multipleExitsError
 
         val elements = jumpExits.map { it.getElement() }
-        if (defaultExits.isNotEmpty()) return MaybeValue(ConditionalJump(elements, elements.first!!))
-        return MaybeValue(UnconditionalJump(elements, elements.first!!))
+        if (defaultExits.isNotEmpty()) return Pair(ConditionalJump(elements, elements.first!!), null)
+        return Pair(UnconditionalJump(elements, elements.first!!), null)
     }
 
-    return MaybeValue(DefaultControlFlow)
+    return Pair(DefaultControlFlow, null)
 }
 
 private fun ExtractionData.createTemporaryCodeBlock(): JetBlockExpression {
@@ -227,23 +239,86 @@ private fun ExtractionData.createTemporaryCodeBlock(): JetBlockExpression {
     return tmpFunction.getBodyExpression() as JetBlockExpression
 }
 
+private fun JetType.collectReferencedTypes(): List<JetType> {
+    return DFS.dfsFromNode(
+            this,
+            object: Neighbors<JetType> {
+                override fun getNeighbors(current: JetType): Iterable<JetType> = current.getArguments().map { it.getType() }
+            },
+            VisitedWithSet(),
+            object: CollectingNodeHandler<JetType, JetType, ArrayList<JetType>>(ArrayList()) {
+                override fun afterChildren(current: JetType) {
+                    result.add(current)
+                }
+            }
+    )!!
+}
+
+fun JetTypeParameter.collectRelevantConstraints(): List<JetTypeConstraint> {
+    val typeConstraints = getParentByType(javaClass<JetTypeParameterListOwner>())?.getTypeConstraints()
+    if (typeConstraints == null) return Collections.emptyList()
+    return typeConstraints.filter { it.getSubjectTypeParameterName()?.getReference()?.resolve() == this}
+}
+
+fun TypeParameter.collectReferencedTypes(bindingContext: BindingContext): List<JetType> {
+    val typeRefs = ArrayList<JetTypeReference>()
+    originalDeclaration.getExtendsBound()?.let { typeRefs.add(it) }
+    originalConstraints
+            .map { it.getBoundTypeReference() }
+            .filterNotNullTo(typeRefs)
+
+    return typeRefs
+            .map { bindingContext[BindingContext.TYPE, it] }
+            .filterNotNull()
+}
+
+private fun JetType.processTypeIfExtractable(
+        bindingContext: BindingContext,
+        typeParameters: MutableSet<TypeParameter>,
+        nonDenotableTypes: HashSet<JetType>
+): Boolean {
+    return collectReferencedTypes().fold(true) { (extractable, typeToCheck) ->
+        val parameterTypeDescriptor = typeToCheck.getConstructor().getDeclarationDescriptor() as? TypeParameterDescriptor
+        val typeParameter = parameterTypeDescriptor?.let {
+            BindingContextUtils.descriptorToDeclaration(bindingContext, it)
+        } as? JetTypeParameter
+
+        when {
+            typeParameter != null -> {
+                typeParameters.add(TypeParameter(typeParameter, typeParameter.collectRelevantConstraints()))
+                extractable
+            }
+
+            typeToCheck.canBeReferencedViaImport() ->
+                extractable
+
+            else -> {
+                nonDenotableTypes.add(typeToCheck)
+                false
+            }
+        }
+    }
+}
+
 private fun ExtractionData.inferParametersInfo(
         commonParent: PsiElement,
         localInstructions: List<Instruction>,
         bindingContext: BindingContext,
         resultType: JetType?,
         replacementMap: MutableMap<Int, Replacement>,
-        parameters: MutableSet<Parameter>
-): MaybeError<ExtractionDescriptor, String>? {
+        parameters: MutableSet<Parameter>,
+        typeParameters: MutableSet<TypeParameter>
+): String? {
     val varNameValidator = JetNameValidatorImpl(
             commonParent.getParentByType(javaClass<JetExpression>()),
             originalElements.first,
-            { it is VariableDescriptor }
+            JetNameValidatorImpl.Target.PROPERTIES
     )
     val modifiedVarDescriptors = localInstructions.getModifiedVarDescriptors(bindingContext)
 
     val extractedDescriptorToParameter = HashMap<DeclarationDescriptor, Parameter>()
     val nonDenotableTypes = HashSet<JetType>()
+
     for (refInfo in getBrokenReferencesInfo(createTemporaryCodeBlock())) {
         val (originalRef, originalDeclaration, originalDescriptor, resolvedCall) = refInfo.resolveResult
         val ref = refInfo.refExpr
@@ -251,7 +326,7 @@ private fun ExtractionData.inferParametersInfo(
         val selector = (ref.getParent() as? JetCallExpression) ?: ref
         val superExpr = (selector.getParent() as? JetQualifiedExpression)?.getReceiverExpression() as? JetSuperExpression
         if (superExpr != null) {
-            return MaybeError(JetRefactoringBundle.message("cannot.extract.super.call")!!)
+            return JetRefactoringBundle.message("cannot.extract.super.call")!!
         }
 
         val receiverArgument = resolvedCall?.getReceiverArgument()
@@ -270,7 +345,7 @@ private fun ExtractionData.inferParametersInfo(
 
         if (classObjectClassDescriptor != null) {
             if (!classObjectClassDescriptor.canBeReferencedViaImport()) {
-                return MaybeError(JetRefactoringBundle.message("cannot.extract.non.local.declaration.ref")!!)
+                return JetRefactoringBundle.message("cannot.extract.non.local.declaration.ref")!!
             }
 
             replacementMap[refInfo.offsetInBody] = FqNameReplacement(DescriptorUtils.getFqNameSafe(originalDescriptor))
@@ -293,10 +368,8 @@ private fun ExtractionData.inferParametersInfo(
                             } ?: DEFAULT_PARAMETER_TYPE
                         }
                         else bindingContext[BindingContext.EXPRESSION_TYPE, originalRef] ?: DEFAULT_PARAMETER_TYPE
-                if (!parameterType.canBeReferencedViaImport()) {
-                    nonDenotableTypes.add(parameterType)
-                    continue
-                }
+
+                if (!parameterType.processTypeIfExtractable(bindingContext, typeParameters, nonDenotableTypes)) continue
 
                 val existingParameter = extractedDescriptorToParameter[descriptorToExtract]
                 val parameter: Parameter =
@@ -337,7 +410,7 @@ private fun ExtractionData.inferParametersInfo(
                                     if (hasThisReceiver && extractThis)
                                         "this@${parameterType.getConstructor().getDeclarationDescriptor()!!.getName().asString()}"
                                     else
-                                        (thisExpr ?: ref).getText()!!
+                                        (thisExpr ?: ref).getText()
 
                             val parameter = Parameter(argumentText, parameterName, mirrorVarName, parameterType, extractThis)
 
@@ -352,8 +425,9 @@ private fun ExtractionData.inferParametersInfo(
         }
     }
 
-    if (resultType != null && !resultType.canBeReferencedViaImport()) {
-        nonDenotableTypes.add(resultType)
+    resultType?.processTypeIfExtractable(bindingContext, typeParameters, nonDenotableTypes)
+    for (typeToCheck in typeParameters.flatMapTo(HashSet<JetType>()) { it.collectReferencedTypes(bindingContext) }) {
+        typeToCheck.processTypeIfExtractable(bindingContext, typeParameters, nonDenotableTypes)
     }
 
     if (nonDenotableTypes.isNotEmpty()) {
@@ -361,7 +435,7 @@ private fun ExtractionData.inferParametersInfo(
             DescriptorRenderer.HTML.renderType(it)
         }.sort().makeString(separator = "\n")
 
-        return MaybeError("${JetRefactoringBundle.message("parameter.types.are.not.denotable")!!}\n$typeStr")
+        return "${JetRefactoringBundle.message("parameter.types.are.not.denotable")!!}\n$typeStr"
     }
 
     parameters.addAll(extractedDescriptorToParameter.values())
@@ -373,7 +447,7 @@ private fun ExtractionData.checkLocalDeclarationsWithNonLocalUsages(
         allInstructions: List<Instruction>,
         localInstructions: List<Instruction>,
         bindingContext: BindingContext
-): MaybeError<ExtractionDescriptor, String>? {
+): String? {
     // todo: non-locally used declaration can be turned into the output value
 
     val declarations = ArrayList<JetNamedDeclaration>()
@@ -390,13 +464,13 @@ private fun ExtractionData.checkLocalDeclarationsWithNonLocalUsages(
 
     if (declarations.isNotEmpty()) {
         val localVarStr = declarations.map { it.getName()!! }.sort().makeString(separator = "\n")
-        return MaybeError("${JetRefactoringBundle.message("variables.are.used.outside.of.selected.code.fragment")!!}\n$localVarStr")
+        return "${JetRefactoringBundle.message("variables.are.used.outside.of.selected.code.fragment")!!}\n$localVarStr"
     }
 
     return null
 }
 
-private fun ExtractionData.checkDeclarationsMovingOutOfScope(controlFlow: ControlFlow): MaybeError<ExtractionDescriptor, String>? {
+private fun ExtractionData.checkDeclarationsMovingOutOfScope(controlFlow: ControlFlow): String? {
     val declarationsOutOfScope = HashSet<JetNamedDeclaration>()
     if (controlFlow is JumpBasedControlFlow) {
         controlFlow.elementToInsertAfterCall.accept(
@@ -413,19 +487,23 @@ private fun ExtractionData.checkDeclarationsMovingOutOfScope(controlFlow: Contro
 
     if (declarationsOutOfScope.isNotEmpty()) {
         val declStr = declarationsOutOfScope.map { it.getName()!! }.sort().makeString(separator = "\n")
-        return MaybeError("${JetRefactoringBundle.message("declarations.will.move.out.of.scope")!!}\n$declStr")
+        return "${JetRefactoringBundle.message("declarations.will.move.out.of.scope")!!}\n$declStr"
     }
 
     return null
 }
 
-fun ExtractionData.performAnalysis(): Maybe<ExtractionDescriptor, String> {
-    if (originalElements.empty) return MaybeError(JetRefactoringBundle.message("cannot.refactor.no.expresson")!!)
+fun ExtractionData.performAnalysis(): AnalysisResult {
+    if (originalElements.empty) {
+        return AnalysisResult(null, Status.CRITICAL_ERROR, listOf(JetRefactoringBundle.message("cannot.refactor.no.expresson")!!))
+    }
 
     val commonParent = PsiTreeUtil.findCommonParent(originalElements)!!
 
     val enclosingDeclaration = commonParent.getParentByType(javaClass<JetDeclarationWithBody>())
-    if (enclosingDeclaration == null) return MaybeError(JetRefactoringBundle.message("cannot.refactor.no.container")!!)
+    if (enclosingDeclaration == null) {
+        return AnalysisResult(null, Status.CRITICAL_ERROR, listOf(JetRefactoringBundle.message("cannot.refactor.no.container")!!))
+    }
 
     val resolveSession = originalFile.getLazyResolveSession()
     val bindingContext = resolveSession.resolveToElement(enclosingDeclaration.getBodyExpression())
@@ -439,24 +517,26 @@ fun ExtractionData.performAnalysis(): Maybe<ExtractionDescriptor, String> {
 
     val replacementMap = HashMap<Int, Replacement>()
     val parameters = HashSet<Parameter>()
-    val parameterError =
-            inferParametersInfo(commonParent, localInstructions, bindingContext, inferredResultType, replacementMap, parameters)
-    if (parameterError != null) return parameterError
+    val typeParameters = HashSet<TypeParameter>()
+    val parameterError = inferParametersInfo(
+            commonParent, localInstructions, bindingContext, inferredResultType, replacementMap, parameters, typeParameters
+    )
+    if (parameterError != null) {
+        return AnalysisResult(null, Status.CRITICAL_ERROR, listOf(parameterError))
+    }
 
-    val controlFlowInfo = localInstructions.analyzeControlFlow(bindingContext, parameters, inferredResultType)
-    if (controlFlowInfo is MaybeError) return MaybeError(controlFlowInfo.error)
-    val controlFlow = (controlFlowInfo as MaybeValue).value
+    val messages = ArrayList<String>()
 
-    val localDeclError = checkLocalDeclarationsWithNonLocalUsages(pseudocode.getInstructions(), localInstructions, bindingContext)
-    if (localDeclError != null) return localDeclError
+    val (controlFlow, controlFlowMessage) = localInstructions.analyzeControlFlow(bindingContext, parameters, inferredResultType)
+    controlFlowMessage?.let { messages.add(it) }
 
-    val outOfScopeError = checkDeclarationsMovingOutOfScope(controlFlow)
-    if (outOfScopeError != null) return outOfScopeError
+    checkLocalDeclarationsWithNonLocalUsages(pseudocode.getInstructions(), localInstructions, bindingContext)?.let { messages.add(it) }
+    checkDeclarationsMovingOutOfScope(controlFlow)?.let { messages.add(it) }
 
     val functionNameValidator = JetNameValidatorImpl(
             nextSibling.getParent(),
             nextSibling,
-            {it is FunctionDescriptor || it is ClassDescriptor}
+            JetNameValidatorImpl.Target.FUNCTIONS_AND_CLASSES
     )
     val functionName = JetNameSuggester.suggestNames(controlFlow.returnType, functionNameValidator, DEFAULT_FUNCTION_NAME).first()
 
@@ -464,8 +544,19 @@ fun ExtractionData.performAnalysis(): Maybe<ExtractionDescriptor, String> {
     val receiverParameter = if (receiverCandidates.size == 1) receiverCandidates.first() else null
     receiverParameter?.let { parameters.remove(it) }
 
-    return MaybeValue(
-            ExtractionDescriptor(this, functionName, "", parameters.sortBy { it.name }, receiverParameter, replacementMap, controlFlow)
+    return AnalysisResult(
+            ExtractionDescriptor(
+                    this,
+                    functionName,
+                    "",
+                    parameters.sortBy { it.name },
+                    receiverParameter,
+                    typeParameters.sortBy { it.originalDeclaration.getName()!! },
+                    replacementMap,
+                    controlFlow
+            ),
+            if (messages.empty) Status.SUCCESS else Status.NON_CRITICAL_ERROR,
+            messages
     )
 }
 
@@ -478,7 +569,7 @@ fun ExtractionDescriptor.validate(): ExtractionDescriptorWithConflicts {
     val bindingContext = AnalyzerFacadeWithCache.getContextForElement(function.getBodyExpression()!!)
 
     for ((originalOffset, resolveResult) in extractionData.refOffsetToDeclaration) {
-        if (resolveResult.declaration in extractionData.originalElements) continue
+        if (resolveResult.declaration.isInsideOf(extractionData.originalElements)) continue
 
         val currentRefExpr = nameByOffset[originalOffset] as JetSimpleNameExpression?
         if (currentRefExpr == null) continue
@@ -493,12 +584,12 @@ fun ExtractionDescriptor.validate(): ExtractionDescriptorWithConflicts {
         } as? PsiNamedElement
         if (currentTarget is JetParameter && currentTarget.getParent() == function.getValueParameterList()) continue
         if (currentDescriptor is LocalVariableDescriptor
-                && parameters.any { it.mirrorVarName == currentDescriptor.getName().asString() }) continue
+        && parameters.any { it.mirrorVarName == currentDescriptor.getName().asString() }) continue
 
         if (diagnostics.any { it.getFactory() == Errors.UNRESOLVED_REFERENCE }
-                || (currentDescriptor != null
-                        && !ErrorUtils.isError(currentDescriptor)
-                        && !compareDescriptors(currentDescriptor, resolveResult.descriptor))) {
+        || (currentDescriptor != null
+        && !ErrorUtils.isError(currentDescriptor)
+        && !compareDescriptors(currentDescriptor, resolveResult.descriptor))) {
             conflicts.putValue(
                     currentRefExpr,
                     JetRefactoringBundle.message(
@@ -530,7 +621,9 @@ fun ExtractionDescriptor.getFunctionText(
     return FunctionBuilder().let { builder ->
         builder.modifier(visibility)
 
-        receiverParameter?.let { builder.receiver(descriptorRenderer.renderType(it.parameterType)) } ?: builder.noReceiver()
+        builder.typeParams(typeParameters.map { it.originalDeclaration.getText() })
+
+        receiverParameter?.let { builder.receiver(descriptorRenderer.renderType(it.parameterType)) }
 
         builder.name(name)
 
@@ -541,6 +634,8 @@ fun ExtractionDescriptor.getFunctionText(
         with(controlFlow.returnType) {
             if (isDefault()) builder.noReturnType() else builder.returnType(descriptorRenderer.renderType(this))
         }
+
+        builder.typeConstraints(typeParameters.flatMap { it.originalConstraints }.map { it.getText() })
 
         if (withBody) {
             builder.blockBody(extractionData.getCodeFragmentText())
@@ -596,10 +691,7 @@ fun ExtractionDescriptor.generateFunction(
         val exprReplacementMap = HashMap<JetElement, (JetElement) -> JetElement>()
         val originalOffsetByExpr = HashMap<JetElement, Int>()
 
-        val range = body.getStatements().first?.getTextRange()
-        if (range == null) return
-
-        val bodyOffset = range.getStartOffset()
+        val bodyOffset = body.getBlockContentOffset()
         val file = body.getContainingFile()!!
 
         for ((offsetInBody, resolveResult) in extractionData.refOffsetToDeclaration) {
@@ -659,7 +751,7 @@ fun ExtractionDescriptor.generateFunction(
 
             is ExpressionEvaluation ->
                 body.getStatements().last?.let {
-                    val newExpr = it.replaced(JetPsiFactory.createReturn(project, it.getText()!!)).getReturnedExpression()!!
+                    val newExpr = it.replaced(JetPsiFactory.createReturn(project, it.getText())).getReturnedExpression()!!
                     val counterpartMap = createNameCounterpartMap(it, newExpr)
                     nameByOffset.entrySet().forEach { it.setValue(counterpartMap[it.getValue()]!!) }
                 }
