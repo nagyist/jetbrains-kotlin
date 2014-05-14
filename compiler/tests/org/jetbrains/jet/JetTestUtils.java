@@ -73,6 +73,7 @@ import org.jetbrains.jet.util.slicedmap.ReadOnlySlice;
 import org.jetbrains.jet.util.slicedmap.SlicedMap;
 import org.jetbrains.jet.util.slicedmap.WritableSlice;
 import org.jetbrains.jet.utils.PathUtil;
+import org.jetbrains.jet.utils.UtilsPackage;
 import org.junit.Assert;
 
 import javax.tools.*;
@@ -89,6 +90,7 @@ import static org.jetbrains.jet.ConfigurationKind.ALL;
 import static org.jetbrains.jet.ConfigurationKind.JDK_AND_ANNOTATIONS;
 import static org.jetbrains.jet.cli.jvm.JVMConfigurationKeys.ANNOTATIONS_PATH_KEY;
 import static org.jetbrains.jet.cli.jvm.JVMConfigurationKeys.CLASSPATH_KEY;
+import static org.jetbrains.jet.jvm.compiler.LoadDescriptorUtil.compileKotlinToDirAndGetAnalyzeExhaust;
 
 public class JetTestUtils {
     private static final Pattern KT_FILES = Pattern.compile(".*?.kt");
@@ -305,6 +307,7 @@ public class JetTestUtils {
         }
     }
 
+    @NotNull
     public static File tmpDirForTest(TestCase test) throws IOException {
         File answer = FileUtil.createTempDirectory(test.getClass().getSimpleName(), test.getName());
         deleteOnShutdown(answer);
@@ -443,7 +446,28 @@ public class JetTestUtils {
             }
         }
         catch (IOException e) {
-            throw new RuntimeException(e);
+            throw UtilsPackage.rethrow(e);
+        }
+    }
+
+    public static void compileKotlinWithJava(
+            @NotNull List<File> javaFiles,
+            @NotNull List<File> ktFiles,
+            @NotNull File outDir,
+            @NotNull Disposable disposable
+    ) throws IOException {
+        if (!ktFiles.isEmpty()) {
+            compileKotlinToDirAndGetAnalyzeExhaust(ktFiles, outDir, disposable, ALL);
+        }
+        else {
+            boolean mkdirs = outDir.mkdirs();
+            assert mkdirs : "Not created: " + outDir;
+        }
+        if (!javaFiles.isEmpty()) {
+            compileJavaFiles(javaFiles, Arrays.asList(
+                    "-classpath", outDir.getPath() + File.pathSeparator + ForTestCompileRuntime.runtimeJarForTests(),
+                    "-d", outDir.getPath()
+            ));
         }
     }
 
@@ -759,6 +783,7 @@ public class JetTestUtils {
         return jetFiles;
     }
 
+    @NotNull
     public static ModuleDescriptorImpl createEmptyModule() {
         return createEmptyModule("<empty-for-test>");
     }
