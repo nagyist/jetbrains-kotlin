@@ -96,7 +96,7 @@ public class ResolveElementCache {
                 JetTypeParameter.class,
                 JetTypeConstraint.class,
                 JetPackageDirective.class,
-                JetExpressionCodeFragment.class);
+                JetCodeFragment.class);
 
         if (elementOfAdditionalResolve != null && !(elementOfAdditionalResolve instanceof JetParameter)) {
             if (elementOfAdditionalResolve instanceof JetPackageDirective) {
@@ -163,8 +163,8 @@ public class ResolveElementCache {
         else if (resolveElement instanceof JetTypeConstraint) {
             typeConstraintAdditionalResolve(resolveSession, (JetTypeConstraint) resolveElement);
         }
-        else if (resolveElement instanceof JetExpressionCodeFragment) {
-            codeFragmentAdditionalResolve(resolveSession, (JetExpressionCodeFragment) resolveElement, trace);
+        else if (resolveElement instanceof JetCodeFragment) {
+            codeFragmentAdditionalResolve(resolveSession, (JetCodeFragment) resolveElement, trace);
         }
         else if (PsiTreeUtil.getParentOfType(resolveElement, JetPackageDirective.class) != null) {
             packageRefAdditionalResolve(resolveSession, trace, resolveElement);
@@ -215,11 +215,11 @@ public class ResolveElementCache {
 
     private void codeFragmentAdditionalResolve(
             ResolveSession resolveSession,
-            JetExpressionCodeFragment codeFragment,
+            JetCodeFragment codeFragment,
             BindingTrace trace
     ) {
-        JetExpression codeFragmentExpression = codeFragment.getExpression();
-        if (codeFragmentExpression == null) return;
+        JetElement codeFragmentExpression = codeFragment.getSignificantElement();
+        if (!(codeFragmentExpression instanceof JetExpression)) return;
 
         PsiElement contextElement = codeFragment.getContext();
         if (!(contextElement instanceof JetExpression)) return;
@@ -239,7 +239,7 @@ public class ResolveElementCache {
 
             DataFlowInfo dataFlowInfoForContextElement = contextForElement.get(BindingContext.EXPRESSION_DATA_FLOW_INFO, contextExpression);
             AnalyzerPackage.computeTypeInContext(
-                    codeFragment.getExpression(),
+                    (JetExpression) codeFragmentExpression,
                     chainedScope,
                     trace,
                     dataFlowInfoForContextElement == null ? DataFlowInfo.EMPTY : dataFlowInfoForContextElement,

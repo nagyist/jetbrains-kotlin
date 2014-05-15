@@ -48,8 +48,6 @@ import org.jetbrains.eval4j.jdi.asValue
 import org.jetbrains.jet.plugin.refactoring.createTempCopy
 import org.jetbrains.jet.plugin.refactoring.extractFunction.ExtractionData
 import org.jetbrains.jet.plugin.refactoring.extractFunction.performAnalysis
-import org.jetbrains.jet.plugin.util.MaybeError
-import org.jetbrains.jet.plugin.util.MaybeValue
 import org.jetbrains.jet.plugin.refactoring.extractFunction.validate
 import org.jetbrains.jet.plugin.refactoring.extractFunction.generateFunction
 import org.jetbrains.jet.lang.psi.JetNamedFunction
@@ -61,12 +59,14 @@ import org.jetbrains.jet.lang.psi.JetExpressionCodeFragment
 import org.jetbrains.jet.plugin.caches.resolve.getAnalysisResults
 import org.jetbrains.jet.lang.psi.JetCodeFragment
 import org.jetbrains.jet.lang.psi.JetImportList
+import org.jetbrains.jet.lang.psi.codeFragmentUtil.setSkipVisibilityCheck
+import org.jetbrains.jet.lang.psi.JetBlockCodeFragment
 import org.jetbrains.jet.lang.psi.JetExpression
 import org.jetbrains.jet.plugin.refactoring.extractFunction.AnalysisResult.Status
 
 object KotlinEvaluationBuilder: EvaluatorBuilder {
     override fun build(codeFragment: PsiElement, position: SourcePosition?): ExpressionEvaluator {
-        if (codeFragment !is JetExpressionCodeFragment || position == null) {
+        if (codeFragment !is JetCodeFragment || position == null) {
             return EvaluatorBuilderImpl.getInstance()!!.build(codeFragment, position)
         }
 
@@ -77,11 +77,11 @@ object KotlinEvaluationBuilder: EvaluatorBuilder {
                 codeFragment.addImportsFromString("import $packageName.*")
             }
         }
-        return ExpressionEvaluatorImpl(KotlinEvaluator(codeFragment as JetExpressionCodeFragment, position))
+        return ExpressionEvaluatorImpl(KotlinEvaluator(codeFragment as JetCodeFragment, position))
     }
 }
 
-class KotlinEvaluator(val codeFragment: JetExpressionCodeFragment,
+class KotlinEvaluator(val codeFragment: JetCodeFragment,
                       val sourcePosition: SourcePosition
 ) : Evaluator {
     override fun evaluate(context: EvaluationContextImpl): Any? {
@@ -170,7 +170,9 @@ class KotlinEvaluator(val codeFragment: JetExpressionCodeFragment,
     private fun createClassFileFactory(extractedFunction: JetNamedFunction): ClassFileFactory {
         return ApplicationManager.getApplication()?.runReadAction(object: Computable<ClassFileFactory> {
             override fun compute(): ClassFileFactory? {
-                val file = createFileForDebugger(codeFragment as JetExpressionCodeFragment, extractedFunction)
+                val file = createFileForDebugger(codeFragment, extractedFunction)
+
+                checkForSyntacticErrors(file)
 
                 val analyzeExhaust = file.getAnalysisResults()
                 val bindingContext = analyzeExhaust.getBindingContext()
@@ -213,7 +215,7 @@ package packageForDebugger
 
 private val packageInternalName = PackageClassUtils.getPackageClassFqName(FqName("packageForDebugger")).asString().replace(".", "/")
 
-private fun createFileForDebugger(codeFragment: JetExpressionCodeFragment,
+private fun createFileForDebugger(codeFragment: JetCodeFragment,
                                   extractedFunction: JetNamedFunction
 ): JetFile {
     var fileText = template.replace("!IMPORT_LIST!",
@@ -225,8 +227,10 @@ private fun createFileForDebugger(codeFragment: JetExpressionCodeFragment,
 
     val virtualFile = LightVirtualFile("debugFile.kt", JetLanguage.INSTANCE, fileText)
     virtualFile.setCharset(CharsetToolkit.UTF8_CHARSET)
-    return (PsiFileFactory.getInstance(codeFragment.getProject()) as PsiFileFactoryImpl)
+    val jetFile = (PsiFileFactory.getInstance(codeFragment.getProject()) as PsiFileFactoryImpl)
             .trySetupPsiForFile(virtualFile, JetLanguage.INSTANCE, true, false) as JetFile
+    jetFile.setSkipVisibilityCheck(true)
+    return jetFile
 }
 
 fun addImportsToFile(newImportList: JetImportList?, tmpFile: JetFile) {
@@ -244,11 +248,15 @@ fun addImportsToFile(newImportList: JetImportList?, tmpFile: JetFile) {
     }
 }
 
-fun addDebugExpressionBeforeContextElement(debugExpression: JetExpression, contextElement: PsiElement): JetExpression? {
+fun addDebugExpressionBeforeContextElement(codeFragment: JetCodeFragment, contextElement: PsiElement): JetExpression? {
     val parent = contextElement.getParent()
     if (parent == null) return null
 
     parent.addBefore(JetPsiFactory.createNewLine(contextElement.getProject()), contextElement)
+
+    val debugExpression = codeFragment.getSignificantElement()
+    if (debugExpression == null) return null
+
     val newDebugExpression = parent.addBefore(debugExpression, contextElement)
     if (newDebugExpression == null) return null
 
@@ -257,14 +265,23 @@ fun addDebugExpressionBeforeContextElement(debugExpression: JetExpression, conte
     return newDebugExpression as JetExpression
 }
 
+fun checkForSyntacticErrors(file: JetFile) {
+    try {
+        AnalyzingUtils.checkForSyntacticErrors(file)
+    }
+    catch (e: IllegalArgumentException) {
+        throw EvaluateExceptionUtil.createEvaluateException(e.getMessage())
+    }
+}
+
 private fun getFunctionForExtractedFragment(
-        codeFragment: JetExpressionCodeFragment,
+        codeFragment: JetCodeFragment,
         breakpointFile: PsiFile,
         breakpointLine: Int
 ): JetNamedFunction? {
     return ApplicationManager.getApplication()?.runReadAction(object: Computable<JetNamedFunction> {
         override fun compute(): JetNamedFunction? {
-            val project = codeFragment.getProject()
+            checkForSyntacticErrors(codeFragment)
 
             val originalFile = breakpointFile as JetFile
 
@@ -272,6 +289,8 @@ private fun getFunctionForExtractedFragment(
             if (lineStart == null) return null
 
             val tmpFile = originalFile.createTempCopy { it }
+            tmpFile.setSkipVisibilityCheck(true)
+
             val elementAtOffset = tmpFile.findElementAt(lineStart)
             if (elementAtOffset == null) return null
 
@@ -279,8 +298,7 @@ private fun getFunctionForExtractedFragment(
 
             addImportsToFile(codeFragment.importsAsImportList(), tmpFile)
 
-            val debugExpression = JetPsiFactory.createExpression(project, codeFragment.getText())
-            val newDebugExpression = addDebugExpressionBeforeContextElement(debugExpression, contextElement)
+            val newDebugExpression = addDebugExpressionBeforeContextElement(codeFragment, contextElement)
             if (newDebugExpression == null) return null
 
             val nextSibling = tmpFile.getDeclarations().firstOrNull()
@@ -288,12 +306,12 @@ private fun getFunctionForExtractedFragment(
 
             val analysisResult = ExtractionData(tmpFile, Collections.singletonList(newDebugExpression), nextSibling).performAnalysis()
             if (analysisResult.status != Status.SUCCESS) {
-                throw EvaluateExceptionUtil.createEvaluateException(analysisResult.messages.makeString("\n"))
+                throw EvaluateExceptionUtil.createEvaluateException(analysisResult.messages.makeString(", "))
             }
 
             val validationResult = analysisResult.descriptor!!.validate()
             if (!validationResult.conflicts.isEmpty()) {
-                throw EvaluateExceptionUtil.createEvaluateException("Some declarations are unavailable")
+                throw EvaluateExceptionUtil.createEvaluateException("Some declarations are unavailable: ${validationResult.conflicts.keySet()?.map { it.getText() }?.makeString(",")}")
             }
 
             return validationResult.descriptor.generateFunction(true)

@@ -43,6 +43,11 @@ public class CodeFragmentHighlightingTestGenerated extends AbstractCodeFragmentH
             doTest("idea/testData/checker/codeFragments/binaryExpression.kt");
         }
         
+        @TestMetadata("blockCodeFragment.kt")
+        public void testBlockCodeFragment() throws Exception {
+            doTest("idea/testData/checker/codeFragments/blockCodeFragment.kt");
+        }
+        
         @TestMetadata("callExpression.kt")
         public void testCallExpression() throws Exception {
             doTest("idea/testData/checker/codeFragments/callExpression.kt");
@@ -51,6 +56,26 @@ public class CodeFragmentHighlightingTestGenerated extends AbstractCodeFragmentH
         @TestMetadata("contextElementAsStatement.kt")
         public void testContextElementAsStatement() throws Exception {
             doTest("idea/testData/checker/codeFragments/contextElementAsStatement.kt");
+        }
+        
+        @TestMetadata("privateFunArgumentsResolve.kt")
+        public void testPrivateFunArgumentsResolve() throws Exception {
+            doTest("idea/testData/checker/codeFragments/privateFunArgumentsResolve.kt");
+        }
+        
+        @TestMetadata("privateFunTypeArguments.kt")
+        public void testPrivateFunTypeArguments() throws Exception {
+            doTest("idea/testData/checker/codeFragments/privateFunTypeArguments.kt");
+        }
+        
+        @TestMetadata("privateMember.kt")
+        public void testPrivateMember() throws Exception {
+            doTest("idea/testData/checker/codeFragments/privateMember.kt");
+        }
+        
+        @TestMetadata("protectedMember.kt")
+        public void testProtectedMember() throws Exception {
+            doTest("idea/testData/checker/codeFragments/protectedMember.kt");
         }
         
         @TestMetadata("simpleNameExpression.kt")
