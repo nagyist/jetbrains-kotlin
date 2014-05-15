@@ -223,7 +223,9 @@ private fun createFileForDebugger(codeFragment: JetCodeFragment,
                                             .split(JetCodeFragment.IMPORT_SEPARATOR)
                                             .makeString("\n"))
 
-    fileText = fileText.replace("!FUNCTION!", extractedFunction.getText())
+    val extractedFunctionText = extractedFunction.getText()
+    assert(extractedFunctionText != null, "Text of extracted function shouldn't be null")
+    fileText = fileText.replace("!FUNCTION!", extractedFunction.getText()!!)
 
     val virtualFile = LightVirtualFile("debugFile.kt", JetLanguage.INSTANCE, fileText)
     virtualFile.setCharset(CharsetToolkit.UTF8_CHARSET)
@@ -254,7 +256,7 @@ fun addDebugExpressionBeforeContextElement(codeFragment: JetCodeFragment, contex
 
     parent.addBefore(JetPsiFactory.createNewLine(contextElement.getProject()), contextElement)
 
-    val debugExpression = codeFragment.getSignificantElement()
+    val debugExpression = codeFragment.getContentElement()
     if (debugExpression == null) return null
 
     val newDebugExpression = parent.addBefore(debugExpression, contextElement)
