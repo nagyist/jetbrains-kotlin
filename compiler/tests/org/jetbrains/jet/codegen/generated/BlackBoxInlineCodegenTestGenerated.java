@@ -36,6 +36,26 @@ public class BlackBoxInlineCodegenTestGenerated extends AbstractBlackBoxCodegenT
         JetTestUtils.assertAllTestsPresentByMetadata(this.getClass(), "org.jetbrains.jet.generators.tests.TestsPackage", new File("compiler/testData/codegen/boxInline"), Pattern.compile("^([^\\.]+)$"), false);
     }
     
+    @TestMetadata("anonymousObjectOnCallSite")
+    public void testAnonymousObjectOnCallSite() throws Exception {
+        doTestMultiFileWithInlineCheck("compiler/testData/codegen/boxInline/anonymousObjectOnCallSite");
+    }
+    
+    @TestMetadata("anonymousObjectOnCallSiteSuperParams")
+    public void testAnonymousObjectOnCallSiteSuperParams() throws Exception {
+        doTestMultiFileWithInlineCheck("compiler/testData/codegen/boxInline/anonymousObjectOnCallSiteSuperParams");
+    }
+    
+    @TestMetadata("anonymousObjectOnDeclarationSite")
+    public void testAnonymousObjectOnDeclarationSite() throws Exception {
+        doTestMultiFileWithInlineCheck("compiler/testData/codegen/boxInline/anonymousObjectOnDeclarationSite");
+    }
+    
+    @TestMetadata("anonymousObjectOnDeclarationSiteSuperParams")
+    public void testAnonymousObjectOnDeclarationSiteSuperParams() throws Exception {
+        doTestMultiFileWithInlineCheck("compiler/testData/codegen/boxInline/anonymousObjectOnDeclarationSiteSuperParams");
+    }
+    
     @TestMetadata("builders")
     public void testBuilders() throws Exception {
         doTestMultiFileWithInlineCheck("compiler/testData/codegen/boxInline/builders");

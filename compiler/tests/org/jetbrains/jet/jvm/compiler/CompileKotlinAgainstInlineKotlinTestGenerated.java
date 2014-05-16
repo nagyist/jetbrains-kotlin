@@ -36,6 +36,26 @@ public class CompileKotlinAgainstInlineKotlinTestGenerated extends AbstractCompi
         JetTestUtils.assertAllTestsPresentByMetadata(this.getClass(), "org.jetbrains.jet.generators.tests.TestsPackage", new File("compiler/testData/codegen/boxInline"), Pattern.compile("^([^\\.]+)$"), false);
     }
     
+    @TestMetadata("anonymousObjectOnCallSite")
+    public void testAnonymousObjectOnCallSite() throws Exception {
+        doBoxTestWithInlineCheck("compiler/testData/codegen/boxInline/anonymousObjectOnCallSite");
+    }
+    
+    @TestMetadata("anonymousObjectOnCallSiteSuperParams")
+    public void testAnonymousObjectOnCallSiteSuperParams() throws Exception {
+        doBoxTestWithInlineCheck("compiler/testData/codegen/boxInline/anonymousObjectOnCallSiteSuperParams");
+    }
+    
+    @TestMetadata("anonymousObjectOnDeclarationSite")
+    public void testAnonymousObjectOnDeclarationSite() throws Exception {
+        doBoxTestWithInlineCheck("compiler/testData/codegen/boxInline/anonymousObjectOnDeclarationSite");
+    }
+    
+    @TestMetadata("anonymousObjectOnDeclarationSiteSuperParams")
+    public void testAnonymousObjectOnDeclarationSiteSuperParams() throws Exception {
+        doBoxTestWithInlineCheck("compiler/testData/codegen/boxInline/anonymousObjectOnDeclarationSiteSuperParams");
+    }
+    
     @TestMetadata("builders")
     public void testBuilders() throws Exception {
         doBoxTestWithInlineCheck("compiler/testData/codegen/boxInline/builders");

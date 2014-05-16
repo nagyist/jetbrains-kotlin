@@ -24,7 +24,6 @@ import org.jetbrains.annotations.Nullable;
 import org.jetbrains.jet.codegen.binding.CalculatedClosure;
 import org.jetbrains.jet.codegen.context.CodegenContext;
 import org.jetbrains.jet.codegen.context.LocalLookup;
-import org.jetbrains.jet.codegen.context.MethodContext;
 import org.jetbrains.jet.codegen.signature.BothSignatureWriter;
 import org.jetbrains.jet.codegen.signature.JvmMethodSignature;
 import org.jetbrains.jet.codegen.state.GenerationState;
@@ -92,12 +91,7 @@ public class ClosureCodegen extends ParentCodegenAwareImpl {
 
         this.asmType = asmTypeForAnonymousClass(bindingContext, funDescriptor);
 
-        //TODO: We should write header on lambda class and filter all completions by header
-        if (parentContext instanceof MethodContext) {
-            visibilityFlag = ((MethodContext) parentContext).isInlineFunction() ? ACC_PUBLIC : NO_FLAG_PACKAGE_PRIVATE;
-        } else {
-            visibilityFlag = NO_FLAG_PACKAGE_PRIVATE;
-        }
+        visibilityFlag = AsmUtil.getVisibilityAccessFlagForAnonymous(classDescriptor);
     }
 
     public void gen() {
@@ -241,13 +235,13 @@ public class ClosureCodegen extends ParentCodegenAwareImpl {
             mv.visitCode();
             InstructionAdapter iv = new InstructionAdapter(mv);
 
-            iv.load(0, superClass);
-            iv.invokespecial(superClass.getInternalName(), "<init>", "()V");
-
             int k = 1;
             for (FieldInfo fieldInfo : args) {
                 k = AsmUtil.genAssignInstanceFieldFromParam(fieldInfo, k, iv);
             }
+
+            iv.load(0, superClass);
+            iv.invokespecial(superClass.getInternalName(), "<init>", "()V");
 
             iv.visitInsn(RETURN);
 

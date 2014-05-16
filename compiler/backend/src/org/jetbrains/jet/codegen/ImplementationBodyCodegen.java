@@ -248,15 +248,15 @@ public class ImplementationBodyCodegen extends ClassBodyCodegen {
         // Do not emit enclosing method in "light-classes mode" since currently we generate local light classes as if they're top level
         if (isLocalOrAnonymousClass && state.getClassBuilderMode() != ClassBuilderMode.LIGHT_CLASSES) {
             String outerClassName = getOuterClassName(descriptor, typeMapper);
-            FunctionDescriptor function = DescriptorUtils.getParentOfType(descriptor, FunctionDescriptor.class);
+            FunctionDescriptor function = AsmUtil.isDeclarationInsideInlineFunction(descriptor)
+                                          ? null
+                                          : DescriptorUtils.getParentOfType(descriptor, FunctionDescriptor.class);
 
             if (function != null) {
                 Method method = typeMapper.mapSignature(function).getAsmMethod();
                 v.visitOuterClass(outerClassName, method.getName(), method.getDescriptor());
             }
             else {
-                assert isObjectLiteral
-                        : "Function descriptor could be null only for object literal in package: " + descriptor.getName();
                 v.visitOuterClass(outerClassName, null, null);
             }
         }
@@ -1156,6 +1156,14 @@ public class ImplementationBodyCodegen extends ClassBodyCodegen {
 
         InstructionAdapter iv = codegen.v;
 
+        if (closure != null) {
+            List<FieldInfo> argsFromClosure = ClosureCodegen.calculateConstructorParameters(typeMapper, closure, classAsmType);
+            int k = 1;
+            for (FieldInfo info : argsFromClosure) {
+                k = AsmUtil.genAssignInstanceFieldFromParam(info, k, iv);
+            }
+        }
+
         if (superCall == null) {
             genSimpleSuperCall(iv);
         }
@@ -1164,14 +1172,6 @@ public class ImplementationBodyCodegen extends ClassBodyCodegen {
         }
         else {
             generateDelegatorToConstructorCall(iv, codegen, constructorDescriptor);
-        }
-
-        if (closure != null) {
-            List<FieldInfo> argsFromClosure = ClosureCodegen.calculateConstructorParameters(typeMapper, closure, classAsmType);
-            int k = 1;
-            for (FieldInfo info : argsFromClosure) {
-                k = AsmUtil.genAssignInstanceFieldFromParam(info, k, iv);
-            }
         }
 
         int n = 0;
