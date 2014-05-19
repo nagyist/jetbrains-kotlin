@@ -22,6 +22,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.jet.lang.PlatformToKotlinClassMap;
 import org.jetbrains.jet.lang.descriptors.*;
+import org.jetbrains.jet.lang.descriptors.annotations.AnnotationDescriptor;
 import org.jetbrains.jet.lang.descriptors.annotations.Annotations;
 import org.jetbrains.jet.lang.descriptors.impl.ValueParameterDescriptorImpl;
 import org.jetbrains.jet.lang.resolve.DescriptorUtils;
@@ -103,6 +104,8 @@ public class KotlinBuiltIns {
     private final Map<JetType, JetType> primitiveJetTypeToJetArrayType;
     private final Map<JetType, JetType> jetArrayTypeToPrimitiveJetType;
 
+    private final FqNames fqNames = new FqNames();
+
     private KotlinBuiltIns() {
         builtInsModule = new ModuleDescriptorImpl(Name.special("<built-ins lazy module>"),
                                                   Collections.<ImportPath>emptyList(),
@@ -127,16 +130,25 @@ public class KotlinBuiltIns {
         nonPhysicalClasses = computeNonPhysicalClasses();
     }
 
-    private void makePrimitive(PrimitiveType primitiveType) {
-        ClassDescriptor theClass = getBuiltInClassByName(primitiveType.getTypeName().asString());
-        JetType type = new JetTypeImpl(theClass);
-        ClassDescriptor arrayClass = getBuiltInClassByName(primitiveType.getArrayTypeName().asString());
-        JetType arrayType = new JetTypeImpl(arrayClass);
+    private void makePrimitive(@NotNull PrimitiveType primitiveType) {
+        JetType type = getBuiltInTypeByClassName(primitiveType.getTypeName().asString());
+        JetType arrayType = getBuiltInTypeByClassName(primitiveType.getArrayTypeName().asString());
 
         primitiveTypeToNullableJetType.put(primitiveType, TypeUtils.makeNullable(type));
         primitiveTypeToArrayJetType.put(primitiveType, arrayType);
         primitiveJetTypeToJetArrayType.put(type, arrayType);
         jetArrayTypeToPrimitiveJetType.put(arrayType, type);
+    }
+
+    private static class FqNames {
+        public final FqNameUnsafe any = fqName("Any");
+        public final FqNameUnsafe nothing = fqName("Nothing");
+        public final FqNameUnsafe suppress = fqName("suppress");
+
+        @NotNull
+        private static FqNameUnsafe fqName(@NotNull String simpleName) {
+            return BUILT_INS_PACKAGE_FQ_NAME.child(Name.identifier(simpleName)).toUnsafe();
+        }
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -276,21 +288,6 @@ public class KotlinBuiltIns {
     }
 
     @NotNull
-    public ClassDescriptor getKFunction(int parameterCount) {
-        return getBuiltInClassByName("KFunction" + parameterCount);
-    }
-
-    @NotNull
-    public ClassDescriptor getKMemberFunction(int parameterCount) {
-        return getBuiltInClassByName("KMemberFunction" + parameterCount);
-    }
-
-    @NotNull
-    public ClassDescriptor getKExtensionFunction(int parameterCount) {
-        return getBuiltInClassByName("KExtensionFunction" + parameterCount);
-    }
-
-    @NotNull
     public ClassDescriptor getThrowable() {
         return getBuiltInClassByName("Throwable");
     }
@@ -300,6 +297,7 @@ public class KotlinBuiltIns {
         return getBuiltInClassByName("data");
     }
 
+    @NotNull
     public ClassDescriptor getNoinlineClassAnnotation() {
         return getBuiltInClassByName("noinline");
     }
@@ -307,11 +305,6 @@ public class KotlinBuiltIns {
     @NotNull
     public ClassDescriptor getInlineClassAnnotation() {
         return getBuiltInClassByName("inline");
-    }
-
-    @NotNull
-    public ClassDescriptor getSuppressAnnotationClass() {
-        return getBuiltInClassByName("suppress");
     }
 
     @NotNull
@@ -496,31 +489,28 @@ public class KotlinBuiltIns {
 
     @NotNull
     private JetType getBuiltInTypeByClassName(@NotNull String classSimpleName) {
-        // TODO
-        return new JetTypeImpl(getBuiltInClassByName(classSimpleName));
+        return getBuiltInClassByName(classSimpleName).getDefaultType();
     }
 
     // Special
 
     @NotNull
     public JetType getNothingType() {
-        return getBuiltInTypeByClassName("Nothing");
+        return getNothing().getDefaultType();
     }
 
     @NotNull
     public JetType getNullableNothingType() {
-        // TODO
         return TypeUtils.makeNullable(getNothingType());
     }
 
     @NotNull
     public JetType getAnyType() {
-        return getBuiltInTypeByClassName("Any");
+        return getAny().getDefaultType();
     }
 
     @NotNull
     public JetType getNullableAnyType() {
-        // TODO
         return TypeUtils.makeNullable(getAnyType());
     }
 
@@ -528,8 +518,7 @@ public class KotlinBuiltIns {
 
     @NotNull
     public JetType getPrimitiveJetType(@NotNull PrimitiveType type) {
-        // TODO
-        return new JetTypeImpl(getPrimitiveClassDescriptor(type));
+        return getPrimitiveClassDescriptor(type).getDefaultType();
     }
 
     @NotNull
@@ -581,12 +570,12 @@ public class KotlinBuiltIns {
 
     @NotNull
     public JetType getUnitType() {
-        return getBuiltInTypeByClassName("Unit");
+        return getUnit().getDefaultType();
     }
 
     @NotNull
     public JetType getStringType() {
-        return getBuiltInTypeByClassName("String");
+        return getString().getDefaultType();
     }
 
     @NotNull
@@ -649,7 +638,7 @@ public class KotlinBuiltIns {
 
     @NotNull
     public JetType getAnnotationType() {
-        return getBuiltInTypeByClassName("Annotation");
+        return getAnnotation().getDefaultType();
     }
 
     @NotNull
@@ -799,10 +788,9 @@ public class KotlinBuiltIns {
 
     // Recognized & special
 
-    public static boolean isSpecialClassWithNoSupertypes(@NotNull ClassDescriptor descriptor) {
+    public boolean isSpecialClassWithNoSupertypes(@NotNull ClassDescriptor descriptor) {
         FqNameUnsafe fqName = DescriptorUtils.getFqName(descriptor);
-        return BUILT_INS_PACKAGE_FQ_NAME.child(Name.identifier("Any")).toUnsafe().equals(fqName) ||
-               BUILT_INS_PACKAGE_FQ_NAME.child(Name.identifier("Nothing")).toUnsafe().equals(fqName);
+        return fqNames.any.equals(fqName) || fqNames.nothing.equals(fqName);
     }
 
     public boolean isNothing(@NotNull JetType type) {
@@ -843,6 +831,11 @@ public class KotlinBuiltIns {
 
     public boolean isTailRecursive(@NotNull DeclarationDescriptor declarationDescriptor) {
         return containsAnnotation(declarationDescriptor, getTailRecursiveAnnotationClass());
+    }
+
+    public boolean isSuppressAnnotation(@NotNull AnnotationDescriptor annotationDescriptor) {
+        ClassifierDescriptor classifier = annotationDescriptor.getType().getConstructor().getDeclarationDescriptor();
+        return classifier != null && fqNames.suppress.equals(DescriptorUtils.getFqName(classifier));
     }
 
     static boolean containsAnnotation(DeclarationDescriptor descriptor, ClassDescriptor annotationClass) {

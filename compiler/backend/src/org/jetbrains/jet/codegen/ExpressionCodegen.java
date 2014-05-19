@@ -50,7 +50,6 @@ import org.jetbrains.jet.lang.resolve.constants.IntegerValueConstant;
 import org.jetbrains.jet.lang.resolve.constants.IntegerValueTypeConstant;
 import org.jetbrains.jet.lang.resolve.java.AsmTypeConstants;
 import org.jetbrains.jet.lang.resolve.java.JvmAbi;
-import org.jetbrains.jet.lang.resolve.java.descriptor.JavaClassDescriptor;
 import org.jetbrains.jet.lang.resolve.java.descriptor.SamConstructorDescriptor;
 import org.jetbrains.jet.lang.resolve.name.Name;
 import org.jetbrains.jet.lang.resolve.scopes.receivers.*;
@@ -221,9 +220,9 @@ public class ExpressionCodegen extends JetVisitor<StackValue, StackValue> implem
         try {
             if (selector instanceof JetExpression) {
                 JetExpression expression = (JetExpression) selector;
-                JavaClassDescriptor samInterface = bindingContext.get(CodegenBinding.SAM_VALUE, expression);
-                if (samInterface != null) {
-                    return genSamInterfaceValue(expression, samInterface, visitor);
+                SamType samType = bindingContext.get(CodegenBinding.SAM_VALUE, expression);
+                if (samType != null) {
+                    return genSamInterfaceValue(expression, samType, visitor);
                 }
             }
 
@@ -1304,21 +1303,16 @@ public class ExpressionCodegen extends JetVisitor<StackValue, StackValue> implem
     @NotNull
     private StackValue genClosure(
             JetDeclarationWithBody declaration,
-            @Nullable ClassDescriptor samInterfaceClass,
+            @Nullable SamType samType,
             @NotNull KotlinSyntheticClass.Kind kind
     ) {
         FunctionDescriptor descriptor = bindingContext.get(FUNCTION, declaration);
         assert descriptor != null : "Function is not resolved to descriptor: " + declaration.getText();
 
-        String functionImplClassPrefix = descriptor.getReceiverParameter() != null ? "ExtensionFunctionImpl" : "FunctionImpl";
-        Type closureSuperClass =
-                samInterfaceClass == null ?
-                Type.getObjectType("kotlin/" + functionImplClassPrefix + descriptor.getValueParameters().size()) :
-                OBJECT_TYPE;
-
-        ClosureCodegen closureCodegen = new ClosureCodegen(state, declaration, descriptor, samInterfaceClass, closureSuperClass, context,
-                kind, this, new FunctionGenerationStrategy.FunctionDefault(state, descriptor, declaration), parentCodegen);
-
+        ClosureCodegen closureCodegen = new ClosureCodegen(
+                state, declaration, descriptor, samType, context, kind, this,
+                new FunctionGenerationStrategy.FunctionDefault(state, descriptor, declaration), parentCodegen
+        );
         closureCodegen.gen();
 
         return closureCodegen.putInstanceOnStack(v, this);
@@ -1890,7 +1884,7 @@ public class ExpressionCodegen extends JetVisitor<StackValue, StackValue> implem
         assert callee != null;
 
         ResolvedCall<?> resolvedCall = resolvedCall(callee);
-        DeclarationDescriptor funDescriptor = resolvedCall.getResultingDescriptor();
+        CallableDescriptor funDescriptor = resolvedCall.getResultingDescriptor();
 
         if (!(funDescriptor instanceof FunctionDescriptor)) {
             throw new UnsupportedOperationException("unknown type of callee descriptor: " + funDescriptor);
@@ -1903,18 +1897,22 @@ public class ExpressionCodegen extends JetVisitor<StackValue, StackValue> implem
         }
 
         Call call = bindingContext.get(CALL, expression.getCalleeExpression());
-        if (funDescriptor instanceof SimpleFunctionDescriptor) {
-            SimpleFunctionDescriptor original = ((SimpleFunctionDescriptor) funDescriptor).getOriginal();
-            if (original instanceof SamConstructorDescriptor) {
-                return invokeSamConstructor(expression, resolvedCall, ((SamConstructorDescriptor) original).getBaseForSynthesized());
-            }
+        if (funDescriptor.getOriginal() instanceof SamConstructorDescriptor) {
+            //noinspection ConstantConditions
+            SamType samType = SamType.create(funDescriptor.getReturnType());
+            assert samType != null : "SamType is not created for SAM constructor: " + funDescriptor;
+            return invokeSamConstructor(expression, resolvedCall, samType);
         }
 
         return invokeFunction(call, receiver, resolvedCall);
     }
 
     @NotNull
-    private StackValue invokeSamConstructor(JetCallExpression expression, ResolvedCall<?> resolvedCall, JavaClassDescriptor samInterface) {
+    private StackValue invokeSamConstructor(
+            @NotNull JetCallExpression expression,
+            @NotNull ResolvedCall<?> resolvedCall,
+            @NotNull SamType samType
+    ) {
         List<ResolvedValueArgument> arguments = resolvedCall.getValueArgumentsByIndex();
         if (arguments == null) {
             throw new IllegalStateException("Failed to arrange value arguments by index: " + resolvedCall.getResultingDescriptor());
@@ -1929,27 +1927,26 @@ public class ExpressionCodegen extends JetVisitor<StackValue, StackValue> implem
         JetExpression argumentExpression = valueArgument.getArgumentExpression();
         assert argumentExpression != null : "getArgumentExpression() is null for " + expression.getText();
 
-        return genSamInterfaceValue(argumentExpression, samInterface, this);
+        return genSamInterfaceValue(argumentExpression, samType, this);
     }
 
     @NotNull
     private StackValue genSamInterfaceValue(
             @NotNull JetExpression expression,
-            @NotNull JavaClassDescriptor samInterface,
+            @NotNull SamType samType,
             @NotNull JetVisitor<StackValue, StackValue> visitor
     ) {
         if (expression instanceof JetFunctionLiteralExpression) {
-            return genClosure(((JetFunctionLiteralExpression) expression).getFunctionLiteral(), samInterface,
+            return genClosure(((JetFunctionLiteralExpression) expression).getFunctionLiteral(), samType,
                               KotlinSyntheticClass.Kind.SAM_LAMBDA);
         }
 
-        Type asmType = state.getSamWrapperClasses().getSamWrapperClass(samInterface, expression.getContainingJetFile());
+        Type asmType = state.getSamWrapperClasses().getSamWrapperClass(samType, expression.getContainingJetFile());
 
         v.anew(asmType);
         v.dup();
 
-        @SuppressWarnings("ConstantConditions")
-        Type functionType = typeMapper.mapType(samInterface.getFunctionTypeForSamInterface());
+        Type functionType = typeMapper.mapType(samType.getKotlinFunctionType());
         expression.accept(visitor, StackValue.none()).put(functionType, v);
 
         Label ifNonNull = new Label();
@@ -2414,16 +2411,9 @@ public class ExpressionCodegen extends JetVisitor<StackValue, StackValue> implem
         FunctionDescriptor functionDescriptor = bindingContext.get(FUNCTION, expression);
         assert functionDescriptor != null : "Callable reference is not resolved to descriptor: " + expression.getText();
 
-        JetType kFunctionType = bindingContext.get(EXPRESSION_TYPE, expression);
-        assert kFunctionType != null : "Callable reference is not type checked: " + expression.getText();
-        ClassDescriptor kFunctionImpl = state.getJvmFunctionImplTypes().kFunctionTypeToImpl(kFunctionType);
-        assert kFunctionImpl != null : "Impl type is not found for the function type: " + kFunctionType;
-
-        Type closureSuperClass = typeMapper.mapType(kFunctionImpl);
-
         CallableReferenceGenerationStrategy strategy =
                 new CallableReferenceGenerationStrategy(state, functionDescriptor, resolvedCall(expression.getCallableReference()));
-        ClosureCodegen closureCodegen = new ClosureCodegen(state, expression, functionDescriptor, null, closureSuperClass, context,
+        ClosureCodegen closureCodegen = new ClosureCodegen(state, expression, functionDescriptor, null, context,
                                                            KotlinSyntheticClass.Kind.CALLABLE_REFERENCE_WRAPPER,
                                                            this, strategy, getParentCodegen());
 

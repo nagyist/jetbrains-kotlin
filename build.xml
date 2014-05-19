@@ -565,9 +565,9 @@
           </sequential>
         </macrodef>
 
-        <new_kotlinc src="${basedir}/core/builtins/src${path.separator}${basedir}/core/runtime.jvm/src"
+        <new_kotlinc src="${basedir}/core/builtins/src${path.separator}${basedir}/core/runtime.jvm/src${path.separator}${basedir}/core/reflection/src"
                      output="${output}/classes/runtime"
-                     classpath="${basedir}/core/builtins/src${path.separator}${basedir}/core/runtime.jvm/src"/>
+                     classpath="${basedir}/core/runtime.jvm/src"/>
 
         <javac2 destdir="${output}/classes/runtime" debug="true" debuglevel="lines,vars,source" includeAntRuntime="false" source="${java.target}" target="${java.target}">
             <src path="${basedir}/core/runtime.jvm/src"/>
@@ -598,6 +598,7 @@
             <fileset dir="${basedir}/core/builtins/native" includes="**/*"/>
             <fileset dir="${basedir}/core/builtins/src" includes="**/*"/>
             <fileset dir="${basedir}/core/runtime.jvm/src" includes="**/*"/>
+            <fileset dir="${basedir}/core/reflection/src" includes="**/*"/>
             <fileset dir="${basedir}/libraries/stdlib/src" includes="**/*"/>
             <zipfileset file="${kotlin-home}/build.txt" prefix="META-INF"/>
 

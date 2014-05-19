@@ -25,12 +25,24 @@ import org.jetbrains.jet.lang.types.lang.KotlinBuiltIns
 import org.jetbrains.jet.lang.descriptors.annotations.Annotations
 import org.jetbrains.jet.lang.types.JetType
 import org.jetbrains.jet.lang.types.JetTypeImpl
+import org.jetbrains.jet.lang.types.error.ErrorClassDescriptor
+
+private val KOTLIN_REFLECT_FQ_NAME = FqName("kotlin.reflect")
 
 public class ReflectionTypes(private val module: ModuleDescriptor) {
-    // TODO: use module instead of built-ins
-    public fun getKFunction(n: Int): ClassDescriptor = KotlinBuiltIns.getInstance().getKFunction(n)
-    public fun getKExtensionFunction(n: Int): ClassDescriptor = KotlinBuiltIns.getInstance().getKExtensionFunction(n)
-    public fun getKMemberFunction(n: Int): ClassDescriptor = KotlinBuiltIns.getInstance().getKMemberFunction(n)
+    private val kotlinReflectScope: JetScope? by Delegates.lazy {
+        module.getPackage(KOTLIN_REFLECT_FQ_NAME)?.getMemberScope()
+    }
+
+    fun find(className: String): ClassDescriptor {
+        val name = Name.identifier(className)
+        return kotlinReflectScope?.getClassifier(name) as? ClassDescriptor
+                ?: ErrorClassDescriptor(KOTLIN_REFLECT_FQ_NAME.child(name).asString())
+    }
+
+    public fun getKFunction(n: Int): ClassDescriptor = find("KFunction$n")
+    public fun getKExtensionFunction(n: Int): ClassDescriptor = find("KExtensionFunction$n")
+    public fun getKMemberFunction(n: Int): ClassDescriptor = find("KMemberFunction$n")
 
     public fun getKFunctionType(
             annotations: Annotations,
@@ -42,7 +54,10 @@ public class ReflectionTypes(private val module: ModuleDescriptor) {
         val arguments = KotlinBuiltIns.getFunctionTypeArgumentProjections(receiverType, parameterTypes, returnType)
         val classDescriptor = correspondingKFunctionClass(receiverType, extensionFunction, parameterTypes.size)
 
-        return JetTypeImpl(annotations, classDescriptor.getTypeConstructor(), false, arguments, classDescriptor.getMemberScope(arguments))
+        return if (classDescriptor is ErrorClassDescriptor)
+                   classDescriptor.getDefaultType()
+               else
+                   JetTypeImpl(annotations, classDescriptor.getTypeConstructor(), false, arguments, classDescriptor.getMemberScope(arguments))
     }
 
     private fun correspondingKFunctionClass(

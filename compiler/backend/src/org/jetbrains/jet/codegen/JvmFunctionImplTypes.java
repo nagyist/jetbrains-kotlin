@@ -16,202 +16,157 @@
 
 package org.jetbrains.jet.codegen;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 import org.jetbrains.jet.lang.descriptors.*;
+import org.jetbrains.jet.lang.descriptors.annotations.Annotations;
 import org.jetbrains.jet.lang.descriptors.impl.MutableClassDescriptor;
 import org.jetbrains.jet.lang.descriptors.impl.MutablePackageFragmentDescriptor;
+import org.jetbrains.jet.lang.descriptors.impl.TypeParameterDescriptorImpl;
 import org.jetbrains.jet.lang.reflect.ReflectionTypes;
+import org.jetbrains.jet.lang.resolve.DescriptorUtils;
 import org.jetbrains.jet.lang.resolve.ImportPath;
 import org.jetbrains.jet.lang.resolve.java.mapping.JavaToKotlinClassMap;
 import org.jetbrains.jet.lang.resolve.name.FqName;
 import org.jetbrains.jet.lang.resolve.name.Name;
-import org.jetbrains.jet.lang.types.JetType;
-import org.jetbrains.jet.lang.types.JetTypeImpl;
-import org.jetbrains.jet.lang.types.TypeProjection;
-import org.jetbrains.jet.lang.types.TypeProjectionImpl;
+import org.jetbrains.jet.lang.types.*;
 import org.jetbrains.jet.lang.types.lang.KotlinBuiltIns;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class JvmFunctionImplTypes {
     private final ReflectionTypes reflectionTypes;
-    private final ModuleDescriptor fakeModule;
 
-    private volatile List<Functions> functionsList;
-    private volatile List<KFunctions> kFunctionsList;
-    private volatile Map<ClassDescriptor, ClassDescriptor> kFunctionToImplMap;
-
-    private static class Functions {
-        public final ClassDescriptor functionImpl;
-        public final ClassDescriptor extensionFunctionImpl;
-
-        public Functions(
-                @NotNull ClassDescriptor functionImpl,
-                @NotNull ClassDescriptor extensionFunctionImpl
-        ) {
-            this.functionImpl = functionImpl;
-            this.extensionFunctionImpl = extensionFunctionImpl;
-        }
-    }
-
-    private static class KFunctions {
-        public final ClassDescriptor kFunctionImpl;
-        public final ClassDescriptor kMemberFunctionImpl;
-        public final ClassDescriptor kExtensionFunctionImpl;
-
-        public KFunctions(
-                @NotNull ClassDescriptor kFunctionImpl,
-                @NotNull ClassDescriptor kMemberFunctionImpl,
-                @NotNull ClassDescriptor kExtensionFunctionImpl
-        ) {
-            this.kFunctionImpl = kFunctionImpl;
-            this.kMemberFunctionImpl = kMemberFunctionImpl;
-            this.kExtensionFunctionImpl = kExtensionFunctionImpl;
-        }
-    }
+    private final ClassDescriptor functionImpl;
+    private final ClassDescriptor extensionFunctionImpl;
+    private final ClassDescriptor kFunctionImpl;
+    private final ClassDescriptor kMemberFunctionImpl;
+    private final ClassDescriptor kExtensionFunctionImpl;
 
     public JvmFunctionImplTypes(@NotNull ReflectionTypes reflectionTypes) {
         this.reflectionTypes = reflectionTypes;
-        this.fakeModule = new ModuleDescriptorImpl(Name.special("<fake module for functions impl>"), Collections.<ImportPath>emptyList(),
-                                                   JavaToKotlinClassMap.getInstance());
+
+        ModuleDescriptor fakeModule = new ModuleDescriptorImpl(Name.special("<fake module for functions impl>"),
+                                                               Collections.<ImportPath>emptyList(), JavaToKotlinClassMap.getInstance());
+
+        PackageFragmentDescriptor kotlinJvmInternal =
+                new MutablePackageFragmentDescriptor(fakeModule, new FqName("kotlin.jvm.internal"));
+        PackageFragmentDescriptor kotlinReflectJvmInternal =
+                new MutablePackageFragmentDescriptor(fakeModule, new FqName("kotlin.reflect.jvm.internal"));
+
+        this.functionImpl = createClass(kotlinJvmInternal, "FunctionImpl", "out R");
+        this.extensionFunctionImpl = createClass(kotlinJvmInternal, "ExtensionFunctionImpl", "in T", "out R");
+        this.kFunctionImpl = createClass(kotlinReflectJvmInternal, "KFunctionImpl", "out R");
+        this.kExtensionFunctionImpl = createClass(kotlinReflectJvmInternal, "KExtensionFunctionImpl", "in T", "out R");
+        this.kMemberFunctionImpl = createClass(kotlinReflectJvmInternal, "KMemberFunctionImpl", "in T", "out R");
     }
 
     @NotNull
-    private List<Functions> getFunctionsImplList() {
-        if (functionsList == null) {
-            MutablePackageFragmentDescriptor kotlin = new MutablePackageFragmentDescriptor(fakeModule, new FqName("kotlin"));
-            KotlinBuiltIns builtIns = KotlinBuiltIns.getInstance();
-
-            ImmutableList.Builder<Functions> builder = ImmutableList.builder();
-            for (int i = 0; i < KotlinBuiltIns.FUNCTION_TRAIT_COUNT; i++) {
-                builder.add(new Functions(
-                        createFunctionImpl(kotlin, "FunctionImpl" + i, builtIns.getFunction(i)),
-                        createFunctionImpl(kotlin, "ExtensionFunctionImpl" + i, builtIns.getExtensionFunction(i))
-                ));
-            }
-            functionsList = builder.build();
+    private static ClassDescriptor createClass(
+            @NotNull PackageFragmentDescriptor packageFragment,
+            @NotNull String name,
+            @NotNull String... typeParameters
+    ) {
+        MutableClassDescriptor descriptor = new MutableClassDescriptor(packageFragment, packageFragment.getMemberScope(),
+                                                                       ClassKind.CLASS, false, Name.identifier(name));
+        List<TypeParameterDescriptor> typeParameterDescriptors = new ArrayList<TypeParameterDescriptor>(typeParameters.length);
+        for (int i = 0; i < typeParameters.length; i++) {
+            String[] s = typeParameters[i].split(" ");
+            Variance variance = Variance.valueOf(s[0].toUpperCase() + "_VARIANCE");
+            String typeParameterName = s[1];
+            TypeParameterDescriptorImpl typeParameter = TypeParameterDescriptorImpl.createForFurtherModification(
+                    descriptor, Annotations.EMPTY, false, variance, Name.identifier(typeParameterName), i
+            );
+            typeParameter.setInitialized();
+            typeParameterDescriptors.add(typeParameter);
         }
-        return functionsList;
+
+        descriptor.setModality(Modality.FINAL);
+        descriptor.setVisibility(Visibilities.PUBLIC);
+        descriptor.setTypeParameterDescriptors(typeParameterDescriptors);
+        descriptor.createTypeConstructor();
+
+        return descriptor;
     }
 
     @NotNull
-    private List<KFunctions> getKFunctionsImplList() {
-        if (kFunctionsList == null) {
-            MutablePackageFragmentDescriptor reflect = new MutablePackageFragmentDescriptor(fakeModule, new FqName("kotlin.reflect"));
-
-            ImmutableList.Builder<KFunctions> builder = ImmutableList.builder();
-            for (int i = 0; i < KotlinBuiltIns.FUNCTION_TRAIT_COUNT; i++) {
-                builder.add(new KFunctions(
-                        createFunctionImpl(reflect, "KFunctionImpl" + i, reflectionTypes.getKFunction(i)),
-                        createFunctionImpl(reflect, "KMemberFunctionImpl" + i, reflectionTypes.getKMemberFunction(i)),
-                        createFunctionImpl(reflect, "KExtensionFunctionImpl" + i, reflectionTypes.getKExtensionFunction(i))
-                ));
-            }
-            kFunctionsList = builder.build();
-        }
-        return kFunctionsList;
-    }
-
-    @NotNull
-    private Map<ClassDescriptor, ClassDescriptor> getKFunctionToImplMap() {
-        if (kFunctionToImplMap == null) {
-            ImmutableMap.Builder<ClassDescriptor, ClassDescriptor> builder = ImmutableMap.builder();
-            for (int i = 0; i < KotlinBuiltIns.FUNCTION_TRAIT_COUNT; i++) {
-                KFunctions kFunctions = getKFunctionsImplList().get(i);
-                builder.put(reflectionTypes.getKFunction(i), kFunctions.kFunctionImpl);
-                builder.put(reflectionTypes.getKMemberFunction(i), kFunctions.kMemberFunctionImpl);
-                builder.put(reflectionTypes.getKExtensionFunction(i), kFunctions.kExtensionFunctionImpl);
-            }
-            kFunctionToImplMap = builder.build();
-        }
-        return kFunctionToImplMap;
-    }
-
-
-    @Nullable
-    public ClassDescriptor kFunctionTypeToImpl(@NotNull JetType functionType) {
-        //noinspection SuspiciousMethodCalls
-        return getKFunctionToImplMap().get(functionType.getConstructor().getDeclarationDescriptor());
-    }
-
-    @NotNull
-    public JetType getSuperTypeForClosure(@NotNull FunctionDescriptor descriptor, boolean kFunction) {
-        int arity = descriptor.getValueParameters().size();
-
+    public Collection<JetType> getSupertypesForClosure(@NotNull FunctionDescriptor descriptor) {
         ReceiverParameterDescriptor receiverParameter = descriptor.getReceiverParameter();
-        ReceiverParameterDescriptor expectedThisObject = descriptor.getExpectedThisObject();
 
-        List<TypeProjection> typeArguments = new ArrayList<TypeProjection>(arity + 2);
+        List<TypeProjection> typeArguments = new ArrayList<TypeProjection>(2);
+
+        ClassDescriptor classDescriptor;
         if (receiverParameter != null) {
+            classDescriptor = extensionFunctionImpl;
             typeArguments.add(new TypeProjectionImpl(receiverParameter.getType()));
         }
-        else if (kFunction && expectedThisObject != null) {
-            typeArguments.add(new TypeProjectionImpl(expectedThisObject.getType()));
-        }
-
-        for (ValueParameterDescriptor parameter : descriptor.getValueParameters()) {
-            typeArguments.add(new TypeProjectionImpl(parameter.getType()));
+        else {
+            classDescriptor = functionImpl;
         }
 
         //noinspection ConstantConditions
         typeArguments.add(new TypeProjectionImpl(descriptor.getReturnType()));
 
-        ClassDescriptor classDescriptor;
-        if (kFunction) {
-            KFunctions kFunctions = getKFunctionsImplList().get(arity);
-            if (expectedThisObject != null) {
-                classDescriptor = kFunctions.kMemberFunctionImpl;
-            }
-            else if (receiverParameter != null) {
-                classDescriptor = kFunctions.kExtensionFunctionImpl;
-            }
-            else {
-                classDescriptor = kFunctions.kFunctionImpl;
-            }
-        }
-        else {
-            Functions functions = getFunctionsImplList().get(arity);
-            if (receiverParameter != null) {
-                classDescriptor = functions.extensionFunctionImpl;
-            }
-            else {
-                classDescriptor = functions.functionImpl;
-            }
-        }
-
-        return new JetTypeImpl(
+        JetType functionImplType = new JetTypeImpl(
                 classDescriptor.getDefaultType().getAnnotations(),
                 classDescriptor.getTypeConstructor(),
                 false,
                 typeArguments,
                 classDescriptor.getMemberScope(typeArguments)
         );
+
+        JetType functionType = KotlinBuiltIns.getInstance().getFunctionType(
+                Annotations.EMPTY,
+                receiverParameter == null ? null : receiverParameter.getType(),
+                DescriptorUtils.getValueParametersTypes(descriptor.getValueParameters()),
+                descriptor.getReturnType()
+        );
+
+        return Arrays.asList(functionImplType, functionType);
     }
 
     @NotNull
-    private static ClassDescriptor createFunctionImpl(
-            @NotNull PackageFragmentDescriptor containingDeclaration,
-            @NotNull String name,
-            @NotNull ClassDescriptor functionInterface
-    ) {
-        MutableClassDescriptor functionImpl = new MutableClassDescriptor(
-                containingDeclaration,
-                containingDeclaration.getMemberScope(),
-                ClassKind.CLASS,
-                false,
-                Name.identifier(name)
-        );
-        functionImpl.setModality(Modality.FINAL);
-        functionImpl.setVisibility(Visibilities.PUBLIC);
-        functionImpl.setTypeParameterDescriptors(functionInterface.getDefaultType().getConstructor().getParameters());
-        functionImpl.createTypeConstructor();
+    public Collection<JetType> getSupertypesForCallableReference(@NotNull FunctionDescriptor descriptor) {
+        ReceiverParameterDescriptor receiverParameter = descriptor.getReceiverParameter();
+        ReceiverParameterDescriptor expectedThisObject = descriptor.getExpectedThisObject();
 
-        return functionImpl;
+        List<TypeProjection> typeArguments = new ArrayList<TypeProjection>(2);
+
+        ClassDescriptor classDescriptor;
+        JetType receiverType;
+        if (receiverParameter != null) {
+            classDescriptor = kExtensionFunctionImpl;
+            receiverType = receiverParameter.getType();
+            typeArguments.add(new TypeProjectionImpl(receiverType));
+        }
+        else if (expectedThisObject != null) {
+            classDescriptor = kMemberFunctionImpl;
+            receiverType = expectedThisObject.getType();
+            typeArguments.add(new TypeProjectionImpl(receiverType));
+        }
+        else {
+            classDescriptor = kFunctionImpl;
+            receiverType = null;
+        }
+
+        //noinspection ConstantConditions
+        typeArguments.add(new TypeProjectionImpl(descriptor.getReturnType()));
+
+        JetType kFunctionImplType = new JetTypeImpl(
+                classDescriptor.getDefaultType().getAnnotations(),
+                classDescriptor.getTypeConstructor(),
+                false,
+                typeArguments,
+                classDescriptor.getMemberScope(typeArguments)
+        );
+
+        JetType kFunctionType = reflectionTypes.getKFunctionType(
+                Annotations.EMPTY,
+                receiverType,
+                DescriptorUtils.getValueParametersTypes(descriptor.getValueParameters()),
+                descriptor.getReturnType(),
+                receiverParameter != null
+        );
+
+        return Arrays.asList(kFunctionImplType, kFunctionType);
     }
 }
