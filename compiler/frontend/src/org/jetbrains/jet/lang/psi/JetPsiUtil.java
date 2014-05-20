@@ -107,8 +107,8 @@ public class JetPsiUtil {
                 }
             }
         }
-        else if (expression instanceof JetPrefixExpression) {
-            JetExpression baseExpression = getBaseExpressionIfLabeledExpression((JetPrefixExpression) expression);
+        else if (expression instanceof JetLabeledExpression) {
+            JetExpression baseExpression = ((JetLabeledExpression) expression).getBaseExpression();
             if (baseExpression != null) {
                 expression = baseExpression;
             }
@@ -122,18 +122,6 @@ public class JetPsiUtil {
                     innerExpression, deparenthesizeBinaryExpressionWithTypeRHS, typeResolutionStrategy) : null;
         }
         return expression;
-    }
-
-    @Nullable
-    public static JetExpression getBaseExpressionIfLabeledExpression(@NotNull JetPrefixExpression expression) {
-        if (isLabeledExpression(expression)) {
-            return expression.getBaseExpression();
-        }
-        return null;
-    }
-
-    public static boolean isLabeledExpression(JetPrefixExpression expression) {
-        return JetTokens.LABELS.contains(expression.getOperationReference().getReferencedNameElementType());
     }
 
     @NotNull
@@ -563,7 +551,7 @@ public class JetPsiUtil {
             return maxPriority - 1;
         }
 
-        if (expression instanceof JetPrefixExpression) return maxPriority - 2;
+        if (expression instanceof JetPrefixExpression || expression instanceof JetLabeledExpression) return maxPriority - 2;
 
         if (expression instanceof JetDeclaration || expression instanceof JetStatementExpression || expression instanceof JetIfExpression) {
             return 0;
@@ -617,7 +605,7 @@ public class JetPsiUtil {
         IElementType parentOperation = getOperation(parentExpression);
 
         // 'return (@label{...})' case
-        if (parentExpression instanceof JetReturnExpression && innerOperation == JetTokens.LABEL_IDENTIFIER) {
+        if (parentExpression instanceof JetReturnExpression && innerExpression instanceof JetLabeledExpression) {
             return true;
         }
 

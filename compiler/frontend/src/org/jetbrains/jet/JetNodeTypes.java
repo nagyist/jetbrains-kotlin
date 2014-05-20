@@ -117,7 +117,7 @@ public interface JetNodeTypes {
 
     JetNodeType REFERENCE_EXPRESSION      = new JetNodeType("REFERENCE_EXPRESSION", JetSimpleNameExpression.class);
     JetNodeType OPERATION_REFERENCE       = new JetNodeType("OPERATION_REFERENCE", JetSimpleNameExpression.class);
-    JetNodeType LABEL_REFERENCE           = new JetNodeType("LABEL_REFERENCE", JetSimpleNameExpression.class);
+    JetNodeType LABEL                     = new JetNodeType("LABEL", JetSimpleNameExpression.class);
 
     JetNodeType LABEL_QUALIFIER           = new JetNodeType("LABEL_QUALIFIER", JetContainerNode.class);
 
@@ -128,6 +128,7 @@ public interface JetNodeTypes {
     JetNodeType IS_EXPRESSION = new JetNodeType("IS_EXPRESSION", JetIsExpression.class); // TODO:
     JetNodeType PREFIX_EXPRESSION         = new JetNodeType("PREFIX_EXPRESSION", JetPrefixExpression.class);
     JetNodeType POSTFIX_EXPRESSION        = new JetNodeType("POSTFIX_EXPRESSION", JetPostfixExpression.class);
+    JetNodeType LABELED_EXPRESSION         = new JetNodeType("LABELED_EXPRESSION", JetLabeledExpression.class);
     JetNodeType CALL_EXPRESSION           = new JetNodeType("CALL_EXPRESSION", JetCallExpression.class);
     JetNodeType ARRAY_ACCESS_EXPRESSION   = new JetNodeType("ARRAY_ACCESS_EXPRESSION", JetArrayAccessExpression.class);
     JetNodeType INDICES                   = new JetNodeType("INDICES", JetContainerNode.class);

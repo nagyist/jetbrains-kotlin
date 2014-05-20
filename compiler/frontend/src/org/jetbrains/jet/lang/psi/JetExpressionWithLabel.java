@@ -21,9 +21,9 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.jet.JetNodeTypes;
 
-public class JetLabelQualifiedExpression extends JetExpressionImpl {
+public class JetExpressionWithLabel extends JetExpressionImpl {
 
-    public JetLabelQualifiedExpression(@NotNull ASTNode node) {
+    public JetExpressionWithLabel(@NotNull ASTNode node) {
         super(node);
     }
     
@@ -31,12 +31,7 @@ public class JetLabelQualifiedExpression extends JetExpressionImpl {
     public JetSimpleNameExpression getTargetLabel() {
         JetContainerNode qualifier = (JetContainerNode) findChildByType(JetNodeTypes.LABEL_QUALIFIER);
         if (qualifier == null) return null;
-        return (JetSimpleNameExpression) qualifier.findChildByType(JetNodeTypes.LABEL_REFERENCE);
-    }
-
-    @Nullable @IfNotParsed
-    public JetExpression getLabeledExpression() {
-        return findChildByClass(JetExpression.class);
+        return (JetSimpleNameExpression) qualifier.findChildByType(JetNodeTypes.LABEL);
     }
 
     @Nullable
@@ -44,5 +39,10 @@ public class JetLabelQualifiedExpression extends JetExpressionImpl {
         JetSimpleNameExpression labelElement = getTargetLabel();
         assert labelElement == null || labelElement.getText().startsWith("@");
         return labelElement == null ? null : labelElement.getText().substring(1);
+    }
+
+    @Override
+    public <R, D> R accept(@NotNull JetVisitor<R, D> visitor, D data) {
+        return visitor.visitExpressionWithLabel(this, data);
     }
 }

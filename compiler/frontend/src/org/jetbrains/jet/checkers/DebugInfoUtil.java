@@ -96,9 +96,9 @@ public class DebugInfoUtil {
                         if (EXCLUDED.contains(referencedNameElementType)) {
                             return;
                         }
-                        if (JetTokens.LABELS.contains(referencedNameElementType)) return;
                     }
-                    else if (nameExpression.getReferencedNameElementType() == JetTokens.THIS_KEYWORD) {
+                    if (elementType == JetNodeTypes.LABEL ||
+                            nameExpression.getReferencedNameElementType() == JetTokens.THIS_KEYWORD) {
                         return;
                     }
                 }

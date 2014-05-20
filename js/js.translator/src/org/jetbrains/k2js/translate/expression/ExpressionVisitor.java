@@ -292,24 +292,22 @@ public final class ExpressionVisitor extends TranslatorVisitor<JsNode> {
     }
 
     @Override
+    public JsNode visitLabeledExpression(
+            @NotNull JetLabeledExpression expression, TranslationContext context
+    ) {
+        JetExpression baseExpression = expression.getBaseExpression();
+        assert baseExpression != null;
+        return new JsLabel(context.scope().declareName(getReferencedName(expression.getTargetLabel())),
+                             convertToStatement(baseExpression.accept(this, context))).source(expression);
+    }
+
+    @Override
     @NotNull
     public JsNode visitPrefixExpression(
             @NotNull JetPrefixExpression expression,
             @NotNull TranslationContext context
     ) {
-        JetSimpleNameExpression operationReference = expression.getOperationReference();
-        IElementType operationToken = operationReference.getReferencedNameElementType();
-        JsNode result;
-        if (JetTokens.LABELS.contains(operationToken)) {
-            JetExpression baseExpression = expression.getBaseExpression();
-            assert baseExpression != null;
-            result = new JsLabel(context.scope().declareName(getReferencedName(operationReference)),
-                                        convertToStatement(baseExpression.accept(this, context)));
-        }
-        else {
-            result = UnaryOperationTranslator.translate(expression, context);
-        }
-        return result.source(expression);
+        return UnaryOperationTranslator.translate(expression, context).source(expression);
     }
 
     @Override
@@ -365,7 +363,7 @@ public final class ExpressionVisitor extends TranslatorVisitor<JsNode> {
         return name.charAt(0) == '@' ? name.substring(1) + '$' : name;
     }
 
-    private static String getTargetLabel(JetLabelQualifiedExpression expression, TranslationContext context) {
+    private static String getTargetLabel(JetExpressionWithLabel expression, TranslationContext context) {
         JetSimpleNameExpression labelElement = expression.getTargetLabel();
         if (labelElement == null) {
             return null;

@@ -53,7 +53,6 @@ import org.jetbrains.jet.lang.resolve.calls.util.CallMaker;
 import org.jetbrains.jet.lang.resolve.constants.CompileTimeConstant;
 import org.jetbrains.jet.lang.resolve.constants.CompileTimeConstantChecker;
 import org.jetbrains.jet.lang.resolve.constants.IntegerValueTypeConstant;
-import org.jetbrains.jet.lang.resolve.name.LabelName;
 import org.jetbrains.jet.lang.resolve.name.Name;
 import org.jetbrains.jet.lang.resolve.scopes.JetScope;
 import org.jetbrains.jet.lang.resolve.scopes.WritableScopeImpl;
@@ -371,14 +370,14 @@ public class BasicExpressionTypingVisitor extends ExpressionTypingVisitor {
 
     @NotNull // No class receivers
     private static LabelResolver.LabeledReceiverResolutionResult resolveToReceiver(
-            JetLabelQualifiedInstanceExpression expression,
+            JetInstanceExpressionWithLabel expression,
             ExpressionTypingContext context,
             boolean onlyClassReceivers
     ) {
         String labelName = expression.getLabelName();
         if (labelName != null) {
-            LabelResolver.LabeledReceiverResolutionResult resolutionResult = context.labelResolver.resolveThisLabel(
-                    expression.getInstanceReference(), expression.getTargetLabel(), context, new LabelName(labelName));
+            LabelResolver.LabeledReceiverResolutionResult resolutionResult =
+                    LabelResolver.INSTANCE.resolveThisOrSuperLabel(expression, context, Name.identifier(labelName));
             if (onlyClassReceivers && resolutionResult.success()) {
                 if (!isDeclaredInClass(resolutionResult.getReceiverParameterDescriptor())) {
                     return LabelResolver.LabeledReceiverResolutionResult.labelResolutionSuccess(NO_RECEIVER_PARAMETER);
@@ -602,11 +601,7 @@ public class BasicExpressionTypingVisitor extends ExpressionTypingVisitor {
     }
 
     @Override
-    public JetTypeInfo visitUnaryExpression(@NotNull JetUnaryExpression expression, ExpressionTypingContext context) {
-        return visitUnaryExpression(expression, context, false);
-    }
-
-    public JetTypeInfo visitUnaryExpression(JetUnaryExpression expression, ExpressionTypingContext contextWithExpectedType, boolean isStatement) {
+    public JetTypeInfo visitUnaryExpression(@NotNull JetUnaryExpression expression, ExpressionTypingContext contextWithExpectedType) {
         ExpressionTypingContext context = isUnaryExpressionDependentOnExpectedType(expression)
                 ? contextWithExpectedType
                 : contextWithExpectedType.replaceContextDependency(INDEPENDENT).replaceExpectedType(NO_EXPECTED_TYPE);
@@ -617,10 +612,6 @@ public class BasicExpressionTypingVisitor extends ExpressionTypingVisitor {
         JetSimpleNameExpression operationSign = expression.getOperationReference();
 
         IElementType operationType = operationSign.getReferencedNameElementType();
-        // If it's a labeled expression
-        if (JetTokens.LABELS.contains(operationType)) {
-            return visitLabeledExpression(expression, context, isStatement);
-        }
 
         // Special case for expr!!
         if (operationType == JetTokens.EXCLEXCL) {
@@ -742,19 +733,23 @@ public class BasicExpressionTypingVisitor extends ExpressionTypingVisitor {
         return JetTypeInfo.create(TypeUtils.makeNotNullable(baseType), dataFlowInfo);
     }
 
-    private JetTypeInfo visitLabeledExpression(@NotNull JetUnaryExpression expression, @NotNull ExpressionTypingContext context,
-            boolean isStatement) {
-        JetExpression baseExpression = expression.getBaseExpression();
-        assert baseExpression != null;
-        JetSimpleNameExpression operationSign = expression.getOperationReference();
-        assert JetTokens.LABELS.contains(operationSign.getReferencedNameElementType());
+    @Override
+    public JetTypeInfo visitLabeledExpression(
+            @NotNull JetLabeledExpression expression, ExpressionTypingContext context
+    ) {
+        return visitLabeledExpression(expression, context, false);
+    }
 
-        String referencedName = operationSign.getReferencedName();
-        context.labelResolver.enterLabeledElement(new LabelName(referencedName.substring(1)), baseExpression);
-        // TODO : Some processing for the label?
-        JetTypeInfo typeInfo = facade.getTypeInfo(baseExpression, context, isStatement);
-        context.labelResolver.exitLabeledElement(baseExpression);
-        return typeInfo;
+    @NotNull
+    public JetTypeInfo visitLabeledExpression(
+            @NotNull JetLabeledExpression expression,
+            @NotNull ExpressionTypingContext context,
+            boolean isStatement
+    ) {
+        JetExpression baseExpression = expression.getBaseExpression();
+        if (baseExpression == null) return JetTypeInfo.create(null, context.dataFlowInfo);
+
+        return facade.getTypeInfo(baseExpression, context, isStatement);
     }
 
     private static boolean isKnownToBeNotNull(JetExpression expression, ExpressionTypingContext context) {
