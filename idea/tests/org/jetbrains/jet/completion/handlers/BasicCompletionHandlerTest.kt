@@ -26,6 +26,10 @@ public class BasicCompletionHandlerTest : CompletionHandlerTestBase(){
 
     fun testClassCompletionImport() = doTest(2, "SortedSet", null, '\n')
 
+    fun testClassCompletionInMiddle() = doTest(1, "TimeZone", " (java.util)", '\t')
+
+    fun testClassCompletionInImport() = doTest(1, "TimeZone", " (java.util)", '\t')
+
     fun testDoNotInsertImportForAlreadyImported() = doTest()
 
     fun testDoNotInsertDefaultJsImports() = doTest()

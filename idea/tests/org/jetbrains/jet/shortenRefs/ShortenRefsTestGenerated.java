@@ -113,6 +113,16 @@ public class ShortenRefsTestGenerated extends AbstractShortenRefsTest {
             doTest("idea/testData/shortenRefs/constructor/NoImportNeeded3.kt");
         }
         
+        @TestMetadata("WorksForClassNameRange.kt")
+        public void testWorksForClassNameRange() throws Exception {
+            doTest("idea/testData/shortenRefs/constructor/WorksForClassNameRange.kt");
+        }
+        
+        @TestMetadata("WorksForClassNameRange2.kt")
+        public void testWorksForClassNameRange2() throws Exception {
+            doTest("idea/testData/shortenRefs/constructor/WorksForClassNameRange2.kt");
+        }
+        
     }
     
     @TestMetadata("idea/testData/shortenRefs/java")
