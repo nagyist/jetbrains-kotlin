@@ -21,14 +21,10 @@ import org.jetbrains.jet.lang.psi.Call
 import org.jetbrains.jet.lang.psi.JetPsiUtil
 import org.jetbrains.jet.lang.psi.JetCallExpression
 import org.jetbrains.jet.lang.psi.JetQualifiedExpression
-import org.jetbrains.jet.lang.psi.JetBinaryExpression
-import org.jetbrains.jet.lang.psi.JetUnaryExpression
-import org.jetbrains.jet.lang.psi.JetArrayAccessExpression
 import org.jetbrains.jet.lang.resolve.BindingContext
 import org.jetbrains.jet.lang.psi.JetOperationExpression
 import org.jetbrains.jet.lang.resolve.BindingContext.CALL
-import com.intellij.psi.util.PsiTreeUtil
-import org.jetbrains.jet.lang.psi.JetSimpleNameExpression
+import org.jetbrains.jet.lang.resolve.calls.ArgumentTypeResolver
 
 /**
  *  For expressions like <code>a(), a[i], a.b.c(), +a, a + b, (a()), a(): Int, @label a()</code>
@@ -50,4 +46,14 @@ fun JetExpression.getCorrespondingCall(bindingContext: BindingContext): Call? {
         else -> expr
     }
     return bindingContext[CALL, reference]
+}
+
+fun Call.hasUnresolvedArguments(bindingContext: BindingContext): Boolean {
+    val arguments = getValueArguments().map { it?.getArgumentExpression() }
+    return arguments.any {
+        argument ->
+        val expressionType = bindingContext[BindingContext.EXPRESSION_TYPE, argument]
+        argument != null && !ArgumentTypeResolver.isFunctionLiteralArgument(argument)
+            && (expressionType == null || expressionType.isError())
+    }
 }
