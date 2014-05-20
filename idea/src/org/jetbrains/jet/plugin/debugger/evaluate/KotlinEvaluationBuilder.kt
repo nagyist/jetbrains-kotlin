@@ -55,14 +55,18 @@ import com.intellij.psi.PsiFile
 import org.jetbrains.jet.codegen.ClassFileFactory
 import org.jetbrains.jet.plugin.codeInsight.CodeInsightUtils
 import org.jetbrains.jet.OutputFileCollection
-import org.jetbrains.jet.lang.psi.JetExpressionCodeFragment
 import org.jetbrains.jet.plugin.caches.resolve.getAnalysisResults
 import org.jetbrains.jet.lang.psi.JetCodeFragment
 import org.jetbrains.jet.lang.psi.JetImportList
 import org.jetbrains.jet.lang.psi.codeFragmentUtil.setSkipVisibilityCheck
-import org.jetbrains.jet.lang.psi.JetBlockCodeFragment
 import org.jetbrains.jet.lang.psi.JetExpression
 import org.jetbrains.jet.plugin.refactoring.extractFunction.AnalysisResult.Status
+import com.intellij.openapi.diagnostic.Logger
+import org.jetbrains.jet.codegen.CompilationErrorHandler
+import org.jetbrains.jet.plugin.refactoring.extractFunction.AnalysisResult
+import org.jetbrains.jet.plugin.refactoring.extractFunction.AnalysisResult.ErrorMessage
+import org.jetbrains.jet.lang.diagnostics.Severity
+import org.jetbrains.jet.lang.diagnostics.rendering.DefaultErrorMessages
 
 object KotlinEvaluationBuilder: EvaluatorBuilder {
     override fun build(codeFragment: PsiElement, position: SourcePosition?): ExpressionEvaluator {
@@ -81,53 +85,67 @@ object KotlinEvaluationBuilder: EvaluatorBuilder {
     }
 }
 
+val logger = Logger.getInstance(javaClass<KotlinEvaluator>())
+
 class KotlinEvaluator(val codeFragment: JetCodeFragment,
                       val sourcePosition: SourcePosition
 ) : Evaluator {
     override fun evaluate(context: EvaluationContextImpl): Any? {
-        val extractedFunction = getFunctionForExtractedFragment(codeFragment, sourcePosition.getFile(), sourcePosition.getLine())
-        if (extractedFunction == null) {
-            exception("This code fragment cannot be extracted to function")
-        }
+        try {
+            val extractedFunction = getFunctionForExtractedFragment(codeFragment, sourcePosition.getFile(), sourcePosition.getLine())
+            if (extractedFunction == null) {
+                throw IllegalStateException("Code fragment cannot be extracted to function: ${sourcePosition.getFile().getText()}:${sourcePosition.getLine()},\ncodeFragment = ${codeFragment.getText()}")
+            }
 
-        val classFileFactory = createClassFileFactory(extractedFunction)
+            val classFileFactory = createClassFileFactory(extractedFunction)
 
-        // KT-4509
-        val outputFiles = (classFileFactory : OutputFileCollection).asList().filter { it.relativePath != "$packageInternalName.class" }
-        if (outputFiles.size() != 1) exception("More than one class file found. Note that lambdas, classes and objects are unsupported yet.\n${outputFiles.makeString("\n")}")
+            // KT-4509
+            val outputFiles = (classFileFactory : OutputFileCollection).asList().filter { it.relativePath != "$packageInternalName.class" }
+            if (outputFiles.size() != 1) exception("Expression compiles to more than one class file. Note that lambdas, classes and objects are unsupported yet. List of files: ${outputFiles.makeString(",")}")
 
-        val virtualMachine = context.getDebugProcess().getVirtualMachineProxy().getVirtualMachine()
+            val virtualMachine = context.getDebugProcess().getVirtualMachineProxy().getVirtualMachine()
 
-        var resultValue: Value? = null
-        ClassReader(outputFiles.first().asByteArray()).accept(object : ClassVisitor(ASM5) {
-            override fun visitMethod(access: Int, name: String, desc: String, signature: String?, exceptions: Array<out String>?): MethodVisitor? {
-                if (name == extractedFunction.getName()) {
-                    return object : MethodNode(Opcodes.ASM5, access, name, desc, signature, exceptions) {
-                        override fun visitEnd() {
-                            val value = interpreterLoop(
-                                    this,
-                                    makeInitialFrame(this, context.getArgumentsByNames(extractedFunction.getParameterNamesForDebugger())),
-                                    JDIEval(virtualMachine,
-                                            context.getClassLoader()!!,
-                                            context.getSuspendContext().getThread()?.getThreadReference()!!)
-                            )
+            var resultValue: Value? = null
+            ClassReader(outputFiles.first().asByteArray()).accept(object : ClassVisitor(ASM5) {
+                override fun visitMethod(access: Int, name: String, desc: String, signature: String?, exceptions: Array<out String>?): MethodVisitor? {
+                    if (name == extractedFunction.getName()) {
+                        return object : MethodNode(Opcodes.ASM5, access, name, desc, signature, exceptions) {
+                            override fun visitEnd() {
+                                val value = interpreterLoop(
+                                        this,
+                                        makeInitialFrame(this, context.getArgumentsByNames(extractedFunction.getParameterNamesForDebugger())),
+                                        JDIEval(virtualMachine,
+                                                context.getClassLoader()!!,
+                                                context.getSuspendContext().getThread()?.getThreadReference()!!)
+                                )
 
-                            resultValue = when (value) {
-                                is ValueReturned -> value.result
-                                is ExceptionThrown -> exception(value.exception.toString())
-                                is AbnormalTermination -> exception(value.message)
-                                else -> throw IllegalStateException("Unknown result value produced by eval4j")
+                                resultValue = when (value) {
+                                    is ValueReturned -> value.result
+                                    is ExceptionThrown -> exception(value.exception.toString())
+                                    is AbnormalTermination -> exception(value.message)
+                                    else -> throw IllegalStateException("Unknown result value produced by eval4j")
+                                }
                             }
                         }
                     }
+                    return super.visitMethod(access, name, desc, signature, exceptions)
                 }
-                return super.visitMethod(access, name, desc, signature, exceptions)
+            }, 0)
+
+            if (resultValue == null) {
+                throw IllegalStateException("resultValue is null: cannot find method ${extractedFunction.getName()} in ${outputFiles.first().relativePath}")
             }
-        }, 0)
 
-        if (resultValue == null) exception("Cannot evaluate expression")
-
-        return resultValue!!.asJdiValue(virtualMachine, resultValue!!.asmType)
+            return resultValue!!.asJdiValue(virtualMachine, resultValue!!.asmType)
+        }
+        catch(e: EvaluateException) {
+            throw e
+        }
+        catch (e: Exception) {
+            logger.error(e)
+            val cause = if (e.getMessage() != null) ": ${e.getMessage()}" else ""
+            exception("An exception occurs during Evaluate Expression Action $cause")
+        }
     }
 
     override fun getModifier(): Modifier? {
@@ -148,21 +166,19 @@ class KotlinEvaluator(val codeFragment: JetCodeFragment,
     private fun EvaluationContextImpl.getArgumentsByNames(parameterNames: List<String>): List<Value> {
         val frames = getFrameProxy()?.getStackFrame()
         if (frames != null) {
-            try {
-                return parameterNames.map {
-                    name ->
-                    if (name == "this") {
-                        frames.thisObject().asValue()
-                    }
-                    else {
-                        frames.getValue(frames.visibleVariableByName(name)).asValue()
+            fun getValue(name: String): Value {
+                return try {
+                    when (name) {
+                        "this" -> frames.thisObject().asValue()
+                        else -> frames.getValue(frames.visibleVariableByName(name)).asValue()
                     }
                 }
+                catch(e: Exception) {
+                    exception("Cannot get parameter value from local variables table: parameterName = ${name}. Note that captured parameters are unsupported yet.")
+                }
             }
-            catch(e: Throwable) {
-                throw IllegalArgumentException(
-                        "Cannot get parameter values from VirtualMachine: ${e.javaClass}\nFunction parameters:\n${parameterNames.makeString("\n")}\nVisible variables:\n${frames.visibleVariables().makeString("\n")}")
-            }
+
+            return parameterNames.map { getValue(it) }
         }
         return Collections.emptyList()
     }
@@ -175,13 +191,16 @@ class KotlinEvaluator(val codeFragment: JetCodeFragment,
                 checkForSyntacticErrors(file)
 
                 val analyzeExhaust = file.getAnalysisResults()
-                val bindingContext = analyzeExhaust.getBindingContext()
-                try {
-                    analyzeExhaust.throwIfError()
-                    AnalyzingUtils.throwExceptionOnErrors(bindingContext)
+                if (analyzeExhaust.isError()) {
+                    exception(analyzeExhaust.getError())
                 }
-                catch (e: IllegalStateException) {
-                    exception(e.getMessage() ?: "Exception from kotlin compiler")
+
+                val bindingContext = analyzeExhaust.getBindingContext()
+                bindingContext.getDiagnostics().forEach {
+                    diagnostic ->
+                    if (diagnostic.getSeverity() == Severity.ERROR) {
+                        exception(DefaultErrorMessages.RENDERER.render(diagnostic))
+                    }
                 }
 
                 val state = GenerationState(
@@ -192,10 +211,7 @@ class KotlinEvaluator(val codeFragment: JetCodeFragment,
                         listOf(file)
                 )
 
-                KotlinCodegenFacade.compileCorrectFiles(state) {
-                    e, msg ->
-                    exception("$msg\n${e?.getMessage() ?: ""}")
-                }
+                KotlinCodegenFacade.compileCorrectFiles(state, CompilationErrorHandler.THROW_EXCEPTION)
 
                 return state.getFactory()
             }
@@ -204,6 +220,14 @@ class KotlinEvaluator(val codeFragment: JetCodeFragment,
     }
 
     private fun exception(msg: String) = throw EvaluateExceptionUtil.createEvaluateException(msg)
+
+    private fun exception(e: Throwable) {
+        val message = e.getMessage()
+        if (message != null) {
+            exception(message)
+        }
+        throw EvaluateExceptionUtil.createEvaluateException(e)
+    }
 }
 
 private val template = """
@@ -282,6 +306,25 @@ private fun getFunctionForExtractedFragment(
         breakpointFile: PsiFile,
         breakpointLine: Int
 ): JetNamedFunction? {
+
+    fun getErrorMessageForExtractFunctionResult(analysisResult: AnalysisResult): String {
+        return analysisResult.messages.map {
+            errorMessage ->
+            val message = when(errorMessage) {
+                ErrorMessage.NO_EXPRESSION -> "Cannot perform an action without an expression"
+                ErrorMessage.NO_CONTAINER -> "Cannot perform an action at this breakpoint ${breakpointFile.getName()}:${breakpointLine}"
+                ErrorMessage.SUPER_CALL -> "Cannot perform an action for expression with super call"
+                ErrorMessage.DENOTABLE_TYPES -> "Cannot perform an action because following types are unavailable from debugger scope"
+                ErrorMessage.MULTIPLE_OUTPUT -> "Cannot perform an action because this code fragment changes more than one variable"
+                ErrorMessage.DECLARATIONS_OUT_OF_SCOPE,
+                ErrorMessage.OUTPUT_AND_EXIT_POINT,
+                ErrorMessage.MULTIPLE_EXIT_POINTS,
+                ErrorMessage.VARIABLES_ARE_USED_OUTSIDE -> "Cannot perform an action for this expression"
+            }
+            if (errorMessage.additionalInfo == null) message else "$message: ${errorMessage.additionalInfo?.makeString(", ")}"
+        }.makeString(", ")
+    }
+
     return ApplicationManager.getApplication()?.runReadAction(object: Computable<JetNamedFunction> {
         override fun compute(): JetNamedFunction? {
             checkForSyntacticErrors(codeFragment)
@@ -309,12 +352,12 @@ private fun getFunctionForExtractedFragment(
 
             val analysisResult = ExtractionData(tmpFile, Collections.singletonList(newDebugExpression), nextSibling).performAnalysis()
             if (analysisResult.status != Status.SUCCESS) {
-                throw EvaluateExceptionUtil.createEvaluateException(analysisResult.messages.makeString(", "))
+                throw EvaluateExceptionUtil.createEvaluateException(getErrorMessageForExtractFunctionResult(analysisResult))
             }
 
             val validationResult = analysisResult.descriptor!!.validate()
             if (!validationResult.conflicts.isEmpty()) {
-                throw EvaluateExceptionUtil.createEvaluateException("Some declarations are unavailable: ${validationResult.conflicts.keySet()?.map { it.getText() }?.makeString(",")}")
+                throw EvaluateExceptionUtil.createEvaluateException("Following declarations are unavailable in debug scope: ${validationResult.conflicts.keySet()?.map { it.getText() }?.makeString(",")}")
             }
 
             return validationResult.descriptor.generateFunction(true)
