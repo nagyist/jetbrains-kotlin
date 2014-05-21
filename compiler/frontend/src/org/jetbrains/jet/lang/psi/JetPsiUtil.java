@@ -37,9 +37,7 @@ import org.jetbrains.jet.JetNodeTypes;
 import org.jetbrains.jet.kdoc.psi.api.KDocElement;
 import org.jetbrains.jet.lang.parsing.JetExpressionParsing;
 import org.jetbrains.jet.lang.psi.psiUtil.PsiUtilPackage;
-import org.jetbrains.jet.lang.resolve.ImportPath;
 import org.jetbrains.jet.lang.resolve.name.FqName;
-import org.jetbrains.jet.lang.resolve.name.FqNameUnsafe;
 import org.jetbrains.jet.lang.resolve.name.Name;
 import org.jetbrains.jet.lang.resolve.name.SpecialNames;
 import org.jetbrains.jet.lang.types.expressions.OperatorConventions;
@@ -227,27 +225,6 @@ public class JetPsiUtil {
     }
 
     @Nullable
-    @IfNotParsed
-    public static ImportPath getImportPath(@NotNull JetImportDirective importDirective) {
-        if (PsiTreeUtil.hasErrorElements(importDirective)) {
-            return null;
-        }
-
-        FqName importFqn = getFQName(importDirective.getImportedReference());
-        if (importFqn == null) {
-            return null;
-        }
-
-        Name alias = null;
-        String aliasName = importDirective.getAliasName();
-        if (aliasName != null) {
-            alias = Name.identifier(aliasName);
-        }
-
-        return new ImportPath(importFqn, importDirective.isAllUnder(), alias);
-    }
-
-    @Nullable
     public static <T extends PsiElement> T getDirectParentOfTypeForBlock(@NotNull JetBlockExpression block, @NotNull Class<T> aClass) {
         T parent = PsiTreeUtil.getParentOfType(block, aClass);
         if (parent instanceof JetIfExpression) {
@@ -310,7 +287,7 @@ public class JetPsiUtil {
     public static void deleteClass(@NotNull JetClassOrObject clazz) {
         CheckUtil.checkWritable(clazz);
         JetFile file = clazz.getContainingJetFile();
-        if (isLocal(clazz) || file.getDeclarations().size() > 1) {
+        if (clazz.isLocal() || file.getDeclarations().size() > 1) {
             PsiElement parent = clazz.getParent();
             CodeEditUtil.removeChild(parent.getNode(), clazz.getNode());
         }
@@ -446,42 +423,6 @@ public class JetPsiUtil {
     }
 
     @Nullable
-    private static FqName getFQName(@Nullable JetExpression expression) {
-        if (expression == null) {
-            return null;
-        }
-
-        if (expression instanceof JetDotQualifiedExpression) {
-            JetDotQualifiedExpression dotQualifiedExpression = (JetDotQualifiedExpression) expression;
-            FqName parentFqn = getFQName(dotQualifiedExpression.getReceiverExpression());
-            Name child = getName(dotQualifiedExpression.getSelectorExpression());
-
-            return parentFqn != null && child != null ? parentFqn.child(child) : null;
-        }
-        else if (expression instanceof JetSimpleNameExpression) {
-            JetSimpleNameExpression simpleNameExpression = (JetSimpleNameExpression) expression;
-            return FqName.topLevel(simpleNameExpression.getReferencedNameAsName());
-        }
-        else {
-            throw new IllegalArgumentException("Can't construct fqn for: " + expression.getClass().toString());
-        }
-    }
-
-    @Nullable
-    private static Name getName(@Nullable JetExpression expression) {
-        if (expression == null) {
-            return null;
-        }
-
-        if (expression instanceof JetSimpleNameExpression) {
-            return ((JetSimpleNameExpression) expression).getReferencedNameAsName();
-        }
-        else {
-            throw new IllegalArgumentException("Can't construct name for: " + expression.getClass().toString());
-        }
-    }
-
-    @Nullable
     public static JetElement getLastStatementInABlock(@Nullable JetBlockExpression blockExpression) {
         if (blockExpression == null) return null;
         List<JetElement> statements = blockExpression.getStatements();
@@ -518,7 +459,7 @@ public class JetPsiUtil {
 
     @Nullable
     public static JetClass getClassIfParameterIsProperty(@NotNull JetParameter jetParameter) {
-        if (jetParameter.getValOrVarNode() != null) {
+        if (jetParameter.hasValOrVarNode()) {
             PsiElement parent = jetParameter.getParent();
             if (parent instanceof JetParameterList && parent.getParent() instanceof JetClass) {
                 return (JetClass) parent.getParent();

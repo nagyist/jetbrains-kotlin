@@ -256,8 +256,12 @@ public class ResolveSession implements KotlinCodeAnalyzer {
     @Override
     @NotNull
     public ClassDescriptor getClassDescriptor(@NotNull JetClassOrObject classOrObject) {
-        if (classOrObject.getParent() instanceof JetClassObject) {
-            return getClassObjectDescriptor((JetClassObject) classOrObject.getParent());
+        if (classOrObject instanceof JetObjectDeclaration) {
+            JetObjectDeclaration objectDeclaration = (JetObjectDeclaration) classOrObject;
+            JetClassObject classObjectElement = objectDeclaration.getClassObjectElement();
+            if (classObjectElement != null) {
+                return getClassObjectDescriptor(classObjectElement);
+            }
         }
         JetScope resolutionScope = getScopeProvider().getResolutionScopeForDeclaration(classOrObject);
         Name name = safeNameForLazyResolve(classOrObject.getNameAsName());
@@ -298,7 +302,7 @@ public class ResolveSession implements KotlinCodeAnalyzer {
 
     @NotNull
     /*package*/ LazyClassDescriptor getClassObjectDescriptor(@NotNull JetClassObject classObject) {
-        JetClass aClass = PsiTreeUtil.getParentOfType(classObject, JetClass.class);
+        JetClass aClass = JetStubbedPsiUtil.getContainingDeclaration(classObject, JetClass.class);
 
         LazyClassDescriptor parentClassDescriptor;
 
@@ -403,7 +407,7 @@ public class ResolveSession implements KotlinCodeAnalyzer {
                     JetClass jetClass = (JetClass) grandFather;
                     // This is a primary constructor parameter
                     ClassDescriptor classDescriptor = getClassDescriptor(jetClass);
-                    if (parameter.getValOrVarNode() != null) {
+                    if (parameter.hasValOrVarNode()) {
                         classDescriptor.getDefaultType().getMemberScope().getProperties(safeNameForLazyResolve(parameter));
                         return getBindingContext().get(BindingContext.PRIMARY_CONSTRUCTOR_PARAMETER, parameter);
                     }

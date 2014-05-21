@@ -184,8 +184,10 @@ public interface Errors {
     DiagnosticFactory1<JetTypeReference, JetType> FINAL_UPPER_BOUND = DiagnosticFactory1.create(WARNING);
     DiagnosticFactory1<JetTypeReference, JetType> FINAL_CLASS_OBJECT_UPPER_BOUND = DiagnosticFactory1.create(ERROR);
 
-    DiagnosticFactory1<PsiElement, TypeParameterDescriptor> CONFLICTING_UPPER_BOUNDS = DiagnosticFactory1.create(ERROR);
-    DiagnosticFactory1<PsiElement, TypeParameterDescriptor> CONFLICTING_CLASS_OBJECT_UPPER_BOUNDS = DiagnosticFactory1.create(ERROR);
+    DiagnosticFactory1<PsiNameIdentifierOwner, TypeParameterDescriptor> CONFLICTING_UPPER_BOUNDS =
+            DiagnosticFactory1.create(ERROR, NAME_IDENTIFIER);
+    DiagnosticFactory1<PsiNameIdentifierOwner, TypeParameterDescriptor> CONFLICTING_CLASS_OBJECT_UPPER_BOUNDS
+            = DiagnosticFactory1.create(ERROR, NAME_IDENTIFIER);
 
     DiagnosticFactory2<JetSimpleNameExpression, JetTypeConstraint, JetTypeParameterListOwner> NAME_IN_CONSTRAINT_IS_NOT_A_TYPE_PARAMETER =
             DiagnosticFactory2.create(ERROR);
@@ -217,7 +219,8 @@ public interface Errors {
 
     DiagnosticFactory0<JetDeclaration> CANNOT_INFER_VISIBILITY = DiagnosticFactory0.create(ERROR, DECLARATION);
 
-    DiagnosticFactory2<PsiElement, CallableMemberDescriptor, DeclarationDescriptor> OVERRIDING_FINAL_MEMBER = DiagnosticFactory2.create(ERROR);
+    DiagnosticFactory2<JetNamedDeclaration, CallableMemberDescriptor, DeclarationDescriptor> OVERRIDING_FINAL_MEMBER =
+            DiagnosticFactory2.create(ERROR, OVERRIDE_MODIFIER);
 
     DiagnosticFactory3<JetModifierListOwner, Visibility, CallableMemberDescriptor, DeclarationDescriptor> CANNOT_WEAKEN_ACCESS_PRIVILEGE =
             DiagnosticFactory3.create(ERROR, VISIBILITY_MODIFIER);
