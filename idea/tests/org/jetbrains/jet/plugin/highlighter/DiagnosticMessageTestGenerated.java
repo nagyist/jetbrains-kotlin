@@ -41,6 +41,11 @@ public class DiagnosticMessageTestGenerated extends AbstractDiagnosticMessageTes
         doTest("idea/testData/diagnosticMessage/assignedButNeverAccessedVariable.kt");
     }
     
+    @TestMetadata("cannotInferVisibility.kt")
+    public void testCannotInferVisibility() throws Exception {
+        doTest("idea/testData/diagnosticMessage/cannotInferVisibility.kt");
+    }
+    
     @TestMetadata("cannotOverrideInvisibleMember.kt")
     public void testCannotOverrideInvisibleMember() throws Exception {
         doTest("idea/testData/diagnosticMessage/cannotOverrideInvisibleMember.kt");
@@ -144,6 +149,11 @@ public class DiagnosticMessageTestGenerated extends AbstractDiagnosticMessageTes
     @TestMetadata("upperBoundViolated.kt")
     public void testUpperBoundViolated() throws Exception {
         doTest("idea/testData/diagnosticMessage/upperBoundViolated.kt");
+    }
+    
+    @TestMetadata("wrongReturnTypeInImplementation.kt")
+    public void testWrongReturnTypeInImplementation() throws Exception {
+        doTest("idea/testData/diagnosticMessage/wrongReturnTypeInImplementation.kt");
     }
     
 }
