@@ -343,7 +343,7 @@ public class ResolveSession implements KotlinCodeAnalyzer {
 
     @Override
     @NotNull
-    public DeclarationDescriptor resolveToDescriptor(JetDeclaration declaration) {
+    public DeclarationDescriptor resolveToDescriptor(@NotNull JetDeclaration declaration) {
         DeclarationDescriptor result = declaration.accept(new JetVisitor<DeclarationDescriptor, Void>() {
             @Override
             public DeclarationDescriptor visitClass(@NotNull JetClass klass, Void data) {
@@ -435,7 +435,8 @@ public class ResolveSession implements KotlinCodeAnalyzer {
             }
         }, null);
         if (result == null) {
-            throw new IllegalStateException("No descriptor resolved for " + declaration + " " + declaration.getText());
+            throw new IllegalStateException("No descriptor resolved for " + declaration + ":\n" +
+                                            JetPsiUtil.getElementTextWithContext(declaration));
         }
         return result;
     }
