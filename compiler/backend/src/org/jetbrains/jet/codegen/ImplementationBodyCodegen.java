@@ -30,7 +30,7 @@ import org.jetbrains.jet.codegen.bridges.BridgesPackage;
 import org.jetbrains.jet.codegen.context.ClassContext;
 import org.jetbrains.jet.codegen.context.ConstructorContext;
 import org.jetbrains.jet.codegen.context.MethodContext;
-import org.jetbrains.jet.codegen.signature.*;
+import org.jetbrains.jet.codegen.signature.BothSignatureWriter;
 import org.jetbrains.jet.codegen.state.GenerationState;
 import org.jetbrains.jet.codegen.state.JetTypeMapper;
 import org.jetbrains.jet.descriptors.serialization.BitEncoding;
@@ -81,9 +81,6 @@ public class ImplementationBodyCodegen extends ClassBodyCodegen {
     private JetType superClassType;
     private final Type classAsmType;
 
-    private final FunctionCodegen functionCodegen;
-    private final PropertyCodegen propertyCodegen;
-
     private List<PropertyAndDefaultValue> classObjectPropertiesToCopy;
 
     public ImplementationBodyCodegen(
@@ -95,8 +92,6 @@ public class ImplementationBodyCodegen extends ClassBodyCodegen {
     ) {
         super(aClass, context, v, state, parentCodegen);
         this.classAsmType = typeMapper.mapClass(descriptor);
-        this.functionCodegen = new FunctionCodegen(context, v, state, this);
-        this.propertyCodegen = new PropertyCodegen(context, v, this.functionCodegen, this);
     }
 
     @Override
@@ -779,7 +774,7 @@ public class ImplementationBodyCodegen extends ClassBodyCodegen {
                         @NotNull MethodVisitor mv,
                         @NotNull JvmMethodSignature signature,
                         @NotNull MethodContext context,
-                        @Nullable MemberCodegen<?> parentCodegen
+                        @NotNull MemberCodegen<?> parentCodegen
                 ) {
                     Type componentType = signature.getReturnType();
                     InstructionAdapter iv = new InstructionAdapter(mv);
@@ -805,7 +800,7 @@ public class ImplementationBodyCodegen extends ClassBodyCodegen {
                         @NotNull MethodVisitor mv,
                         @NotNull JvmMethodSignature signature,
                         @NotNull MethodContext context,
-                        @Nullable MemberCodegen<?> parentCodegen
+                        @NotNull MemberCodegen<?> parentCodegen
                 ) {
                     InstructionAdapter iv = new InstructionAdapter(mv);
 
@@ -1034,7 +1029,7 @@ public class ImplementationBodyCodegen extends ClassBodyCodegen {
         for (PropertyAndDefaultValue info : classObjectPropertiesToCopy) {
             PropertyDescriptor property = info.descriptor;
 
-            FieldVisitor fv = v.newField(null, ACC_STATIC | ACC_FINAL | ACC_PUBLIC, context.getFieldName(property),
+            FieldVisitor fv = v.newField(null, ACC_STATIC | ACC_FINAL | ACC_PUBLIC, context.getFieldName(property, false),
                                               typeMapper.mapType(property).getDescriptor(), null, info.defaultValue);
 
             AnnotationCodegen.forField(fv, typeMapper).genAnnotations(property);
@@ -1177,7 +1172,7 @@ public class ImplementationBodyCodegen extends ClassBodyCodegen {
                 iv.load(codegen.myFrameMap.getIndex(descriptor), type);
                 PropertyDescriptor propertyDescriptor = bindingContext.get(BindingContext.PRIMARY_CONSTRUCTOR_PARAMETER, parameter);
                 assert propertyDescriptor != null : "Property descriptor is not found for primary constructor parameter: " + parameter;
-                iv.putfield(classAsmType.getInternalName(), context.getFieldName(propertyDescriptor), type.getDescriptor());
+                iv.putfield(classAsmType.getInternalName(), context.getFieldName(propertyDescriptor, false), type.getDescriptor());
             }
             curParam++;
         }

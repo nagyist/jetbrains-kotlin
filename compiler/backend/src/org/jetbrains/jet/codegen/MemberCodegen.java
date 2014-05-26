@@ -55,12 +55,14 @@ import static org.jetbrains.jet.lang.resolve.BindingContext.VARIABLE;
 import static org.jetbrains.jet.lang.resolve.java.AsmTypeConstants.*;
 import static org.jetbrains.org.objectweb.asm.Opcodes.*;
 
-public abstract class MemberCodegen<T extends JetElement/* TODO: & JetDeclarationContainer*/> extends ParentCodegenAwareImpl {
+public abstract class MemberCodegen<T extends JetElement/* TODO: & JetDeclarationContainer*/> extends ParentCodegenAware {
     protected final T element;
     protected final FieldOwnerContext context;
     protected final ClassBuilder v;
-    protected ExpressionCodegen clInit;
+    protected final FunctionCodegen functionCodegen;
+    protected final PropertyCodegen propertyCodegen;
 
+    protected ExpressionCodegen clInit;
     private NameGenerator inlineNameGenerator;
 
     public MemberCodegen(
@@ -68,12 +70,14 @@ public abstract class MemberCodegen<T extends JetElement/* TODO: & JetDeclaratio
             @Nullable MemberCodegen<?> parentCodegen,
             @NotNull FieldOwnerContext context,
             T element,
-            ClassBuilder builder
+            @NotNull ClassBuilder builder
     ) {
         super(state, parentCodegen);
         this.element = element;
         this.context = context;
         this.v = builder;
+        this.functionCodegen = new FunctionCodegen(context, v, state, this);
+        this.propertyCodegen = new PropertyCodegen(context, v, functionCodegen, this);
     }
 
     public void generate() {
@@ -106,11 +110,7 @@ public abstract class MemberCodegen<T extends JetElement/* TODO: & JetDeclaratio
         v.done();
     }
 
-    public void genFunctionOrProperty(
-            @NotNull JetTypeParameterListOwner functionOrProperty,
-            @NotNull ClassBuilder classBuilder
-    ) {
-        FunctionCodegen functionCodegen = new FunctionCodegen(context, classBuilder, state, this);
+    public void genFunctionOrProperty(@NotNull JetDeclaration functionOrProperty) {
         if (functionOrProperty instanceof JetNamedFunction) {
             try {
                 functionCodegen.gen((JetNamedFunction) functionOrProperty);
@@ -127,7 +127,7 @@ public abstract class MemberCodegen<T extends JetElement/* TODO: & JetDeclaratio
         }
         else if (functionOrProperty instanceof JetProperty) {
             try {
-                new PropertyCodegen(context, classBuilder, functionCodegen, this).gen((JetProperty) functionOrProperty);
+                propertyCodegen.gen((JetProperty) functionOrProperty);
             }
             catch (ProcessCanceledException e) {
                 throw e;
@@ -161,12 +161,14 @@ public abstract class MemberCodegen<T extends JetElement/* TODO: & JetDeclaratio
             badDescriptor(descriptor, state.getClassBuilderMode());
         }
 
-        ClassBuilder classBuilder = state.getFactory().forClassImplementation(descriptor, aClass.getContainingFile());
+        Type classType = state.getTypeMapper().mapClass(descriptor);
+        ClassBuilder classBuilder = state.getFactory().newVisitor(classType, aClass.getContainingFile());
         ClassContext classContext = parentContext.intoClass(descriptor, OwnerKind.IMPLEMENTATION, state);
         new ImplementationBodyCodegen(aClass, classContext, classBuilder, state, parentCodegen).generate();
 
         if (aClass instanceof JetClass && ((JetClass) aClass).isTrait()) {
-            ClassBuilder traitImplBuilder = state.getFactory().forTraitImplementation(descriptor, state, aClass.getContainingFile());
+            Type traitImplType = state.getTypeMapper().mapTraitImpl(descriptor);
+            ClassBuilder traitImplBuilder = state.getFactory().newVisitor(traitImplType, aClass.getContainingFile());
             ClassContext traitImplContext = parentContext.intoClass(descriptor, OwnerKind.TRAIT_IMPL, state);
             new TraitImplBodyCodegen(aClass, traitImplContext, traitImplBuilder, state, parentCodegen).generate();
         }

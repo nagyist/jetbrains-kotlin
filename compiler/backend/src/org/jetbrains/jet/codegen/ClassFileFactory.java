@@ -24,20 +24,16 @@ import com.intellij.util.Function;
 import com.intellij.util.containers.ContainerUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.annotations.TestOnly;
 import org.jetbrains.jet.OutputFile;
 import org.jetbrains.jet.OutputFileCollection;
 import org.jetbrains.jet.codegen.state.GenerationState;
-import org.jetbrains.jet.lang.descriptors.ClassDescriptor;
 import org.jetbrains.jet.lang.psi.JetFile;
 import org.jetbrains.jet.lang.resolve.name.FqName;
 import org.jetbrains.org.objectweb.asm.Type;
 
 import java.io.File;
 import java.util.*;
-
-import static org.jetbrains.jet.codegen.AsmUtil.asmTypeByFqNameWithoutInnerClasses;
-import static org.jetbrains.jet.codegen.AsmUtil.isPrimitive;
-import static org.jetbrains.jet.lang.resolve.java.PackageClassUtils.getPackageClassFqName;
 
 public class ClassFileFactory implements OutputFileCollection {
     private final GenerationState state;
@@ -53,12 +49,12 @@ public class ClassFileFactory implements OutputFileCollection {
     }
 
     @NotNull
-    ClassBuilder newVisitor(@NotNull Type asmType, @NotNull PsiFile sourceFile) {
+    public ClassBuilder newVisitor(@NotNull Type asmType, @NotNull PsiFile sourceFile) {
         return newVisitor(asmType, Collections.singletonList(sourceFile));
     }
 
     @NotNull
-    private ClassBuilder newVisitor(@NotNull Type asmType, @NotNull Collection<? extends PsiFile> sourceFiles) {
+    public ClassBuilder newVisitor(@NotNull Type asmType, @NotNull Collection<? extends PsiFile> sourceFiles) {
         String outputFilePath = asmType.getInternalName() + ".class";
         state.getProgress().reportOutput(toIoFilesIgnoringNonPhysical(sourceFiles), new File(outputFilePath));
         ClassBuilder answer = builderFactory.newClassBuilder();
@@ -90,11 +86,11 @@ public class ClassFileFactory implements OutputFileCollection {
     @Override
     @Nullable
     public OutputFile get(@NotNull String relativePath) {
-        if (generators.containsKey(relativePath)) return new OutputClassFile(relativePath);
-
-        return null;
+        return generators.containsKey(relativePath) ? new OutputClassFile(relativePath) : null;
     }
 
+    @NotNull
+    @TestOnly
     public String createText() {
         StringBuilder answer = new StringBuilder();
 
@@ -106,50 +102,20 @@ public class ClassFileFactory implements OutputFileCollection {
         return answer.toString();
     }
 
-    public PackageCodegen forPackage(final FqName fqName, final Collection<JetFile> files) {
+    @NotNull
+    public PackageCodegen forPackage(@NotNull FqName fqName, @NotNull Collection<JetFile> files) {
         assert !isDone : "Already done!";
         PackageCodegen codegen = package2codegen.get(fqName);
         if (codegen == null) {
-            ClassBuilderOnDemand onDemand = new ClassBuilderOnDemand() {
-                @NotNull
-                @Override
-                protected ClassBuilder createClassBuilder() {
-                    return newVisitor(asmTypeByFqNameWithoutInnerClasses(getPackageClassFqName(fqName)), files);
-                }
-            };
-            codegen = new PackageCodegen(onDemand, fqName, state, files);
+            codegen = new PackageCodegen(state, files, fqName);
             package2codegen.put(fqName, codegen);
         }
 
         return codegen;
     }
 
-    public ClassBuilder forClassImplementation(ClassDescriptor aClass, PsiFile sourceFile) {
-        Type type = state.getTypeMapper().mapClass(aClass);
-        if (isPrimitive(type)) {
-            throw new IllegalStateException("Codegen for primitive type is not possible: " + aClass);
-        }
-        return newVisitor(type, sourceFile);
-    }
-
-    public ClassBuilder forLambdaInlining(Type lambdaType, PsiFile sourceFile) {
-        if (isPrimitive(lambdaType)) {
-            throw new IllegalStateException("Codegen for primitive type is not possible: " + lambdaType);
-        }
-        return newVisitor(lambdaType, sourceFile);
-    }
-
     @NotNull
-    public ClassBuilder forPackagePart(@NotNull Type asmType, @NotNull PsiFile sourceFile) {
-        return newVisitor(asmType, sourceFile);
-    }
-
-    @NotNull
-    public ClassBuilder forTraitImplementation(@NotNull ClassDescriptor aClass, @NotNull GenerationState state, @NotNull PsiFile file) {
-        return newVisitor(state.getTypeMapper().mapTraitImpl(aClass), file);
-    }
-
-    private static Collection<File> toIoFilesIgnoringNonPhysical(Collection<? extends PsiFile> psiFiles) {
+    private static Collection<File> toIoFilesIgnoringNonPhysical(@NotNull Collection<? extends PsiFile> psiFiles) {
         List<File> result = Lists.newArrayList();
         for (PsiFile psiFile : psiFiles) {
             VirtualFile virtualFile = psiFile.getVirtualFile();
@@ -162,10 +128,10 @@ public class ClassFileFactory implements OutputFileCollection {
         return result;
     }
 
-    private final class OutputClassFile implements OutputFile {
-        final String relativeClassFilePath;
+    private class OutputClassFile implements OutputFile {
+        private final String relativeClassFilePath;
 
-        OutputClassFile(String relativeClassFilePath) {
+        public OutputClassFile(String relativeClassFilePath) {
             this.relativeClassFilePath = relativeClassFilePath;
         }
 
