@@ -5,6 +5,7 @@ import com.intellij.lexer.*;
 import com.intellij.psi.*;
 import com.intellij.psi.tree.IElementType;
 import com.intellij.util.containers.Stack;
+import org.jetbrains.jet.lexer.KotlinLexerException;
 
 import org.jetbrains.jet.lexer.JetTokens;
 
@@ -59,6 +60,8 @@ import org.jetbrains.jet.lexer.JetTokens;
         }
     }
 %}
+
+%scanerror KotlinLexerException
 
 %function advance
 %type IElementType
@@ -324,5 +327,9 @@ LONG_TEMPLATE_ENTRY_START=\$\{
 ","          { return JetTokens.COMMA     ; }
 "#"          { return JetTokens.HASH      ; }
 
-. { return TokenType.BAD_CHARACTER; }
+// error fallback
+.            { return TokenType.BAD_CHARACTER; }
+// error fallback for exclusive states
+<STRING, RAW_STRING, SHORT_TEMPLATE_ENTRY, BLOCK_COMMENT, DOC_COMMENT> .
+             { return TokenType.BAD_CHARACTER; }
 
