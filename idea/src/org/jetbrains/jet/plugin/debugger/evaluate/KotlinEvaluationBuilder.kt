@@ -77,12 +77,14 @@ object KotlinEvaluationBuilder: EvaluatorBuilder {
             return EvaluatorBuilderImpl.getInstance()!!.build(codeFragment, position)
         }
 
-        val elementAt = position.getElementAt()
-        if (elementAt != null) {
-            val packageName = (elementAt.getContainingFile() as JetFile).getPackageDirective()?.getFqName()?.asString()
-            if (packageName != null) {
-                codeFragment.addImportsFromString("import $packageName.*")
-            }
+        val file = position.getFile()
+        if (file !is JetFile) {
+            throw EvaluateExceptionUtil.createEvaluateException("Couldn't evaluate kotlin expression in non-kotlin context")
+        }
+
+        val packageName = file.getPackageDirective()?.getFqName()?.asString()
+        if (packageName != null) {
+            codeFragment.addImportsFromString("import $packageName.*")
         }
         return ExpressionEvaluatorImpl(KotlinEvaluator(codeFragment as JetCodeFragment, position))
     }
@@ -145,7 +147,7 @@ class KotlinEvaluator(val codeFragment: JetCodeFragment,
             throw e
         }
         catch (e: Exception) {
-            logger.error(e)
+            logger.error("Couldn't evaluate expression:\nfileText = ${sourcePosition.getFile().getText()}\nline = ${sourcePosition.getLine()}\ncodeFragment = ${codeFragment.getText()}", e)
             val cause = if (e.getMessage() != null) ": ${e.getMessage()}" else ""
             exception("An exception occurs during Evaluate Expression Action $cause")
         }
@@ -161,11 +163,11 @@ class KotlinEvaluator(val codeFragment: JetCodeFragment,
 
     private fun JetNamedFunction.getParameterNamesForDebugger(): List<String> {
         val result = arrayListOf<String>()
-        for (param in getValueParameters()) {
-            result.add(param.getName()!!)
-        }
         if (getReceiverTypeRef() != null) {
             result.add("this")
+        }
+        for (param in getValueParameters()) {
+            result.add(param.getName()!!)
         }
         return result
     }
