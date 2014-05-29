@@ -228,6 +228,9 @@ public class OverrideResolver {
             @NotNull Function<? super D, ? extends CallableDescriptor> transform,
             @NotNull Filtering filtering
     ) {
+
+        if (candidateSet.size() <= 1) return candidateSet;
+
         Set<D> candidates = Sets.newLinkedHashSet();
         outerLoop:
         for (D meD : candidateSet) {
@@ -259,13 +262,23 @@ public class OverrideResolver {
             }
             candidates.add(meD);
         }
+
+        if (candidates.isEmpty()) {
+            candidates.add(candidateSet.iterator().next());
+        }
+
         return candidates;
     }
 
     public static <D extends CallableDescriptor> boolean overrides(@NotNull D f, @NotNull D g) {
+        // This first check cover the case of duplicate classes in different modules:
+        // when B is defined in modules m1 and m2, and C (indirectly) inherits from both versions,
+        // we'll be getting sets of members that do not override each other, but are structurally equivalent.
+        // As other code relies on no equal descriptors passed here, we guard against f == g, but this may not be necessary
+        if (!f.equals(g) && DescriptorEquivalenceForOverrides.instance$.areEquivalent(f.getOriginal(), g.getOriginal())) return true;
         CallableDescriptor originalG = g.getOriginal();
         for (D overriddenFunction : getAllOverriddenDescriptors(f)) {
-            if (originalG.equals(overriddenFunction.getOriginal())) return true;
+            if (DescriptorEquivalenceForOverrides.instance$.areEquivalent(originalG, overriddenFunction.getOriginal())) return true;
         }
         return false;
     }
