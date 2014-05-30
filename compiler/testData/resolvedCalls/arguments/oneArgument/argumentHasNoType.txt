@@ -1,0 +1,8 @@
+foo(b)
+
+This object = NO_RECEIVER
+Receiver argument = NO_RECEIVER
+Explicit receiver kind = NO_EXPLICIT_RECEIVER
+
+Value arguments mapping:
+b - a : A, ARGUMENT_HAS_NO_TYPE

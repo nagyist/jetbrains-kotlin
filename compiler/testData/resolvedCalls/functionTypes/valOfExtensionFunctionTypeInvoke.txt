@@ -1,0 +1,5 @@
+foo()
+
+This object = foo
+Receiver argument = 1
+Explicit receiver kind = BOTH_RECEIVERS

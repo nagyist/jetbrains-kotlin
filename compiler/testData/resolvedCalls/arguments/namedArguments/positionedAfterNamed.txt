@@ -1,0 +1,9 @@
+foo(b = B(), A())
+
+This object = NO_RECEIVER
+Receiver argument = NO_RECEIVER
+Explicit receiver kind = NO_EXPLICIT_RECEIVER
+
+Value arguments mapping:
+B() - b : B, SUCCESS
+A() - argument unmapped

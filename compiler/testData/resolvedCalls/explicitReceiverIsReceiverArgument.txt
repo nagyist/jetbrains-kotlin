@@ -1,0 +1,5 @@
+foo()
+
+This object = NO_RECEIVER
+Receiver argument = a
+Explicit receiver kind = RECEIVER_ARGUMENT

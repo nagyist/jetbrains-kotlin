@@ -1,0 +1,10 @@
+foo(1, { x -> "$x"}, { y -> y.length })
+
+This object = NO_RECEIVER
+Receiver argument = NO_RECEIVER
+Explicit receiver kind = NO_EXPLICIT_RECEIVER
+
+Value arguments mapping:
+1                 - t : Int, SUCCESS
+{ x -> "$x"}      - f : (Int) -> String, SUCCESS
+{ y -> y.length } - g : (String) -> Int, SUCCESS

@@ -1,0 +1,5 @@
+f()
+
+This object = f
+Receiver argument = 1
+Explicit receiver kind = BOTH_RECEIVERS

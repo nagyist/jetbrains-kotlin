@@ -1,0 +1,9 @@
+foo(11, ls)
+
+This object = NO_RECEIVER
+Receiver argument = NO_RECEIVER
+Explicit receiver kind = NO_EXPLICIT_RECEIVER
+
+Value arguments mapping:
+11 - t : ???, MATCH_MODULO_UNINFERRED_TYPES
+ls - l : MutableList<???>, MATCH_MODULO_UNINFERRED_TYPES

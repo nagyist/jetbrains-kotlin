@@ -1,0 +1,5 @@
+f()
+
+This object = f
+Receiver argument = Int
+Explicit receiver kind = THIS_OBJECT

@@ -1,0 +1,8 @@
+foo(1)
+
+This object = a
+Receiver argument = NO_RECEIVER
+Explicit receiver kind = THIS_OBJECT
+
+Value arguments mapping:
+1 - argument unmapped

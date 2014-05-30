@@ -1,0 +1,8 @@
+foo { (x: Int) -> "$x"}
+
+This object = NO_RECEIVER
+Receiver argument = NO_RECEIVER
+Explicit receiver kind = NO_EXPLICIT_RECEIVER
+
+Value arguments mapping:
+{ (x: Int) -> "$x"} - f : (Int) -> String, SUCCESS

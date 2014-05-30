@@ -1,0 +1,5 @@
++"Foo"
+
+This object = Title
+Receiver argument = "Foo"
+Explicit receiver kind = RECEIVER_ARGUMENT

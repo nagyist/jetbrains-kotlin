@@ -1,0 +1,8 @@
+foo { x -> "$x"}
+
+This object = NO_RECEIVER
+Receiver argument = NO_RECEIVER
+Explicit receiver kind = NO_EXPLICIT_RECEIVER
+
+Value arguments mapping:
+{ x -> "$x"} - argument unmapped

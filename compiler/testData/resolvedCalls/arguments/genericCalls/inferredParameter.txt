@@ -1,0 +1,9 @@
+foo(11, ls)
+
+This object = NO_RECEIVER
+Receiver argument = NO_RECEIVER
+Explicit receiver kind = NO_EXPLICIT_RECEIVER
+
+Value arguments mapping:
+11 - t : Comparable<out Any?>, SUCCESS
+ls - l : List<Comparable<out Any?>>, SUCCESS
