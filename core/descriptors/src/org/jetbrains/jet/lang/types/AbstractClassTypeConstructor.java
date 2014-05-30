@@ -17,6 +17,7 @@
 package org.jetbrains.jet.lang.types;
 
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.jetbrains.jet.lang.descriptors.ClassDescriptor;
 import org.jetbrains.jet.lang.descriptors.ClassifierDescriptor;
 import org.jetbrains.jet.lang.resolve.DescriptorUtils;
@@ -41,8 +42,7 @@ public abstract class AbstractClassTypeConstructor implements TypeConstructor {
         ClassifierDescriptor otherDescriptor = ((TypeConstructor) other).getDeclarationDescriptor();
 
         // All error types have the same descriptor
-        if (myDescriptor != null && ErrorUtils.isError(myDescriptor)
-            || otherDescriptor != null && ErrorUtils.isError(otherDescriptor)) {
+        if (!hasMeaningfulFqName(myDescriptor) || !hasMeaningfulFqName(otherDescriptor)) {
             return me == other;
         }
 
@@ -64,5 +64,12 @@ public abstract class AbstractClassTypeConstructor implements TypeConstructor {
             return DescriptorUtils.getFqName(classDescriptor).hashCode();
         }
         return System.identityHashCode(me);
+    }
+
+    private static boolean hasMeaningfulFqName(@Nullable ClassifierDescriptor descriptor) {
+        return descriptor == null ||
+               !ErrorUtils.isError(descriptor) &&
+               !DescriptorUtils.isAnonymousObject(descriptor) &&
+               !DescriptorUtils.isLocal(descriptor);
     }
 }
