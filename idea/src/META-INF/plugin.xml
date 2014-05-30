@@ -92,6 +92,10 @@
       <add-to-group group-id="KotlinToolsGroup"/>
     </action>
 
+    <action id="CheckAllKotlinFiles" class="org.jetbrains.jet.plugin.actions.CheckAllKotlinFiles"
+            text="Check All Kotlin Files">
+    </action>
+
     <action id="ConfigureKotlinJsInProject" class="org.jetbrains.jet.plugin.actions.ConfigureKotlinJsInProjectAction"
             text="Configure Kotlin (JavaScript) in Project">
       <add-to-group group-id="KotlinToolsGroup"/>
