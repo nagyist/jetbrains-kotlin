@@ -58,7 +58,7 @@ import org.jetbrains.jet.OutputFileCollection
 import org.jetbrains.jet.plugin.caches.resolve.getAnalysisResults
 import org.jetbrains.jet.lang.psi.JetCodeFragment
 import org.jetbrains.jet.lang.psi.JetImportList
-import org.jetbrains.jet.lang.psi.codeFragmentUtil.setSkipVisibilityCheck
+import org.jetbrains.jet.lang.psi.codeFragmentUtil.skipVisibilityCheck
 import org.jetbrains.jet.lang.psi.JetExpression
 import org.jetbrains.jet.plugin.refactoring.extractFunction.AnalysisResult.Status
 import com.intellij.openapi.diagnostic.Logger
@@ -265,7 +265,7 @@ private fun createFileForDebugger(codeFragment: JetCodeFragment,
     virtualFile.setCharset(CharsetToolkit.UTF8_CHARSET)
     val jetFile = (PsiFileFactory.getInstance(codeFragment.getProject()) as PsiFileFactoryImpl)
             .trySetupPsiForFile(virtualFile, JetLanguage.INSTANCE, true, false) as JetFile
-    jetFile.setSkipVisibilityCheck(true)
+    jetFile.skipVisibilityCheck = true
     return jetFile
 }
 
@@ -344,7 +344,7 @@ private fun getFunctionForExtractedFragment(
             if (lineStart == null) return null
 
             val tmpFile = originalFile.createTempCopy { it }
-            tmpFile.setSkipVisibilityCheck(true)
+            tmpFile.skipVisibilityCheck = true
 
             val elementAtOffset = tmpFile.findElementAt(lineStart)
             if (elementAtOffset == null) return null
@@ -356,10 +356,10 @@ private fun getFunctionForExtractedFragment(
             val newDebugExpression = addDebugExpressionBeforeContextElement(codeFragment, contextElement)
             if (newDebugExpression == null) return null
 
-            val nextSibling = tmpFile.getDeclarations().firstOrNull()
-            if (nextSibling == null) return null
+            val targetSibling = tmpFile.getDeclarations().firstOrNull()
+            if (targetSibling == null) return null
 
-            val analysisResult = ExtractionData(tmpFile, Collections.singletonList(newDebugExpression), nextSibling).performAnalysis()
+            val analysisResult = ExtractionData(tmpFile, Collections.singletonList(newDebugExpression), targetSibling).performAnalysis()
             if (analysisResult.status != Status.SUCCESS) {
                 throw EvaluateExceptionUtil.createEvaluateException(getErrorMessageForExtractFunctionResult(analysisResult))
             }
