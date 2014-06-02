@@ -74,7 +74,11 @@ public class LazyJavaPackageFragmentProvider(
         val packageFragment = getPackageFragment(fqName.parent())
         if (packageFragment == null) return@lambda null
 
-        LazyJavaClassDescriptor(
+        //val alreadyResolved = c.javaResolverCache.getClass(jClass)
+        //if (alreadyResolved != null)
+        //    alreadyResolved as LazyJavaClassDescriptor
+        //else
+            LazyJavaClassDescriptor(
                 c.withTypes(TypeParameterResolver.EMPTY),
                 packageFragment,
                 fqName,

@@ -188,10 +188,11 @@ public class LazyJavaClassMemberScope(
         }
         else {
             // TODO: this caching is a temporary workaround, should be replaced with properly caching the whole LazyJavaPackageFragmentProvider
-            val alreadyResolved = c.javaResolverCache.getClass(jNestedClass)
-            if (alreadyResolved != null)
-                alreadyResolved
-            else LazyJavaClassDescriptor(c,
+            //val alreadyResolved = c.javaResolverCache.getClass(jNestedClass)
+            //if (alreadyResolved != null)
+            //    alreadyResolved
+            //else
+                LazyJavaClassDescriptor(c,
                                     getContainingDeclaration(),
                                     DescriptorUtils.getFqName(getContainingDeclaration()).child(name).toSafe(),
                                     jNestedClass)
