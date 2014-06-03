@@ -16,7 +16,6 @@
 
 package org.jetbrains.jet.j2k.ast
 
-import org.jetbrains.jet.j2k.ast.types.Type
 import org.jetbrains.jet.j2k.*
 import java.util.ArrayList
 
@@ -35,7 +34,7 @@ open class Field(
             modifierList.add(Modifier.ABSTRACT)
         }
 
-        val modifier = accessModifier()
+        val modifier = modifiers.accessModifier()
         if (modifier != null) {
             modifierList.add(modifier)
         }
@@ -48,7 +47,7 @@ open class Field(
     override fun toKotlin(): String {
         val declaration: String = commentsToKotlin() +
         modifiersToKotlin() + identifier.toKotlin() + " : " + `type`.toKotlin()
-        if (initializer.isEmpty()) {
+        if (initializer.isEmpty) {
             return declaration + ((if (isVal() && !isStatic() && writingAccesses != 0)
                 ""
             else

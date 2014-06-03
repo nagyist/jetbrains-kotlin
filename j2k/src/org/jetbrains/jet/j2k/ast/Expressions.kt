@@ -16,11 +16,9 @@
 
 package org.jetbrains.jet.j2k.ast
 
-import org.jetbrains.jet.j2k.ast.types.Type
-
 open class ArrayAccessExpression(val expression: Expression, val index: Expression, val lvalue: Boolean) : Expression() {
     override fun toKotlin() = expression.toKotlin() +
-    (if (!lvalue && expression.isNullable()) "!!" else "") +
+    (if (!lvalue && expression.isNullable) "!!" else "") +
     "[" + index.toKotlin() + "]"
 }
 
@@ -58,7 +56,9 @@ open class ParenthesizedExpression(val expression: Expression) : Expression() {
 
 open class PrefixOperator(val op: String, val expression: Expression) : Expression() {
     override fun toKotlin() = op + expression.toKotlin()
-    override fun isNullable() = expression.isNullable()
+
+    override val isNullable: Boolean
+        get() = expression.isNullable
 }
 
 open class PostfixOperator(val op: String, val expression: Expression) : Expression() {

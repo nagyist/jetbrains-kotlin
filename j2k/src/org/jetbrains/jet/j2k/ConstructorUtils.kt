@@ -19,57 +19,83 @@ package org.jetbrains.jet.j2k
 import com.intellij.psi.PsiMethod
 import com.intellij.psi.PsiClass
 import com.intellij.psi.PsiReferenceExpression
-import com.intellij.psi.PsiElement
 import com.intellij.psi.JavaRecursiveElementVisitor
 import java.util.LinkedHashSet
+import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiMethodCallExpression
+import com.intellij.psi.PsiParameter
+import com.intellij.psi.PsiField
+import com.intellij.psi.PsiAssignmentExpression
+import com.intellij.psi.PsiThisExpression
+import com.intellij.psi.PsiStatement
+import com.intellij.psi.PsiExpressionStatement
+import com.intellij.psi.PsiBlockStatement
+import com.intellij.psi.util.PsiUtil
 
-fun isConstructorPrimary(constructor: PsiMethod): Boolean {
-    val parent = constructor.getParent()
-    if (parent is PsiClass) {
-        if (parent.getConstructors().size == 1) {
-            return true
-        }
-        else {
-            val c = getPrimaryConstructorForThisCase(parent)
-            if (c != null && c.hashCode() == constructor.hashCode()) {
-                return true
+fun PsiMethod.isPrimaryConstructor(): Boolean {
+    if (!isConstructor()) return false
+    val parent = getParent()
+    if (parent !is PsiClass) return false
+    return parent.getPrimaryConstructor() == this
+}
+
+fun PsiClass.getPrimaryConstructor(): PsiMethod? {
+    val constructors = getConstructors()
+    return when (constructors.size) {
+        0 -> null
+
+        1 -> constructors.single()
+
+        else -> {
+            // if there is more than one constructor then choose one invoked by all others
+            class Visitor() : JavaRecursiveElementVisitor() {
+                //TODO: skip all non-constructor members (optimization)
+                private val invokedConstructors = LinkedHashSet<PsiMethod>()
+
+                override fun visitReferenceExpression(expression: PsiReferenceExpression) {
+                    expression.getReferences()
+                            .filter { it.getCanonicalText() == "this" }
+                            .map { it.resolve() }
+                            .filterIsInstance(javaClass<PsiMethod>())
+                            .filterTo(invokedConstructors) { it.isConstructor() }
+                }
+
+                val primaryConstructor: PsiMethod?
+                    get() = if (invokedConstructors.size == 1) invokedConstructors.single() else null
             }
+
+            val visitor = Visitor()
+            accept(visitor)
+            visitor.primaryConstructor
         }
+    }
+}
+
+fun PsiElement.isInsidePrimaryConstructor(): Boolean
+        = getContainingConstructor()?.isPrimaryConstructor() ?: false
+
+fun PsiElement.getContainingConstructor(): PsiMethod? {
+    var context = getContext()
+    while (context != null) {
+        val _context = context!!
+        if (_context is PsiMethod) {
+            return if (_context.isConstructor()) _context else null
+        }
+
+        context = _context.getContext()
+    }
+    return null
+}
+
+fun PsiMethodCallExpression.isSuperConstructorCall(): Boolean {
+    val ref = getMethodExpression()
+    if (ref.getCanonicalText().equals("super")) {
+        val target = ref.resolve()
+        return target is PsiMethod && target.isConstructor()
     }
     return false
 }
 
-private fun getPrimaryConstructorForThisCase(psiClass: PsiClass): PsiMethod? {
-    val tv = FindPrimaryConstructorVisitor()
-    psiClass.accept(tv)
-    return tv.getPrimaryConstructor()
-}
-
-private class FindPrimaryConstructorVisitor() : JavaRecursiveElementVisitor() {
-    private val myResolvedConstructors = LinkedHashSet<PsiMethod>()
-
-    override fun visitReferenceExpression(expression: PsiReferenceExpression?) {
-        for (r in expression?.getReferences()!!) {
-            if (r.getCanonicalText() == "this") {
-                val res: PsiElement? = r.resolve()
-                if (res is PsiMethod && res.isConstructor()) {
-                    myResolvedConstructors.add(res)
-                }
-            }
-        }
-    }
-
-    fun getPrimaryConstructor(): PsiMethod? {
-        if (myResolvedConstructors.size() > 0) {
-            val first: PsiMethod = myResolvedConstructors.iterator().next()
-            for (m in myResolvedConstructors)
-                if (m.hashCode() != first.hashCode()) {
-                    return null
-                }
-
-            return first
-        }
-        return null
-    }
-}
+fun PsiReferenceExpression.isThisConstructorCall(): Boolean
+        = getReferences().filter { it.getCanonicalText() == "this" }.map { it.resolve() }.any { it is PsiMethod && it.isConstructor() }
 

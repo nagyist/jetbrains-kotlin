@@ -16,7 +16,6 @@
 
 package org.jetbrains.jet.j2k.ast
 
-import org.jetbrains.jet.j2k.ast.types.Type
 import com.intellij.psi.PsiTypeParameter
 import org.jetbrains.jet.j2k.Converter
 import com.intellij.psi.PsiTypeParameterList
@@ -56,7 +55,9 @@ class TypeParameterList(val parameters: List<TypeParameter>) : Element {
         return ""
     }
 
-    override fun isEmpty(): Boolean = parameters.isEmpty()
+
+    override val isEmpty: Boolean
+        get() = parameters.isEmpty()
 
     private fun hasWhere(): Boolean = parameters.any { it.hasWhere() }
 

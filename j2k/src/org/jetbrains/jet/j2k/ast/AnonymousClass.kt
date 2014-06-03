@@ -17,17 +17,17 @@
 package org.jetbrains.jet.j2k.ast
 
 import org.jetbrains.jet.j2k.Converter
-import org.jetbrains.jet.j2k.ast.types.Type
 import java.util.Collections
 
-class AnonymousClass(converter: Converter, members: List<Element>)
+class AnonymousClass(converter: Converter, bodyElements: List<Element>)
 : Class(converter,
         Identifier("anonClass"),
         MemberComments.Empty,
         Collections.emptySet<Modifier>(),
         TypeParameterList.Empty,
-        Collections.emptyList<Type>(),
-        Collections.emptyList<Expression>(),
-        Collections.emptyList<Type>(), members) {
+        listOf(),
+        listOf(),
+        listOf(),
+        bodyElements) {
     override fun toKotlin() = bodyToKotlin()
 }

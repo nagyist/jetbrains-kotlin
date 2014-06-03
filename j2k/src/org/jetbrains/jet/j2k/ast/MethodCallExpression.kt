@@ -16,7 +16,6 @@
 
 package org.jetbrains.jet.j2k.ast
 
-import org.jetbrains.jet.j2k.ast.types.Type
 import java.util.ArrayList
 
 open class MethodCallExpression(
@@ -25,7 +24,9 @@ open class MethodCallExpression(
         val typeParameters: List<Type>,
         val resultIsNullable: Boolean = false
 ) : Expression() {
-    override fun isNullable(): Boolean = methodCall.isNullable() || resultIsNullable
+
+    override val isNullable: Boolean
+        get() = methodCall.isNullable || resultIsNullable
 
     override fun toKotlin(): String {
         val typeParamsToKotlin: String = typeParameters.toKotlin(", ", "<", ">")

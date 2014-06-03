@@ -16,7 +16,6 @@
 
 package org.jetbrains.jet.j2k.ast
 
-import org.jetbrains.jet.j2k.ast.types.Type
 import org.jetbrains.jet.j2k.Converter
 
 class LocalVariable(
@@ -27,11 +26,11 @@ class LocalVariable(
         val converter: Converter
 ) : Expression() {
 
-    fun isImmutable(): Boolean =
-            converter.settings.forceLocalVariableImmutability || modifiersSet.contains(Modifier.FINAL)
+    val isImmutable: Boolean
+        get() = converter.settings.forceLocalVariableImmutability || modifiersSet.contains(Modifier.FINAL)
 
     override fun toKotlin(): String {
-        if (initializer.isEmpty()) {
+        if (initializer.isEmpty) {
             return "${identifier.toKotlin()} : ${javaType.toKotlin()}"
         }
 
