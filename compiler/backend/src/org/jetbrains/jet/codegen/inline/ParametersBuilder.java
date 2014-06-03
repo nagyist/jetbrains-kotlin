@@ -47,15 +47,7 @@ public class  ParametersBuilder {
     }
 
     @NotNull
-    public ParameterInfo addNextParameter(@NotNull Type type, boolean skipped, @Nullable ParameterInfo original) {
-        return addParameter(new ParameterInfo(type, skipped, nextIndex, original != null ? original.getIndex() : -1));
-    }
-
-    @NotNull
-    public ParameterInfo addNextParameter(@NotNull Type type, boolean skipped, @Nullable StackValue remapValue, @Nullable FrameMap frameMap) {
-        if (frameMap != null) {
-            //frameMap.enterTemp(type);
-        }
+    public ParameterInfo addNextParameter(@NotNull Type type, boolean skipped, @Nullable StackValue remapValue) {
         return addParameter(new ParameterInfo(type, skipped, nextIndex, remapValue));
     }
 
@@ -66,6 +58,15 @@ public class  ParametersBuilder {
     ) {
         CapturedParamInfo info = new CapturedParamInfo(original.desc, newFieldName, original.isSkipped, nextCaptured, original.getIndex());
         info.setLambda(original.getLambda());
+        return addCapturedParameter(info);
+    }
+
+    @NotNull
+    public CapturedParamInfo addCapturedParam(
+            @NotNull CapturedParamDesc desc,
+            @NotNull String newFieldName
+    ) {
+        CapturedParamInfo info = new CapturedParamInfo(desc, newFieldName, false, nextCaptured, null);
         return addCapturedParameter(info);
     }
 

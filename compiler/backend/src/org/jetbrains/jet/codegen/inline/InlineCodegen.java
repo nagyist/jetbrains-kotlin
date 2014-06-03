@@ -267,17 +267,11 @@ public class InlineCodegen implements CallGenerator {
 
             ParameterInfo info;
             if (capturedParamIndex >= 0) {
-                CapturedParamInfo capturedParamInfoInLambda = activeLambda.getCapturedVars().get(capturedParamIndex);
-                info = invocationParamBuilder.addCapturedParamCopy(capturedParamInfoInLambda);
+                CapturedParamDesc capturedParamInfoInLambda = activeLambda.getCapturedVars().get(capturedParamIndex);
+                info = invocationParamBuilder.addCapturedParam(capturedParamInfoInLambda, capturedParamInfoInLambda.getFieldName());
                 info.setRemapValue(remappedIndex);
-
-                //TODO remove
-                if(couldBeRemapped) {
-                    assert remappedIndex != null : "Couldn't remap to null value";
-                    capturedParamInfoInLambda.setRemapValue(remappedIndex);
-                }
             } else {
-                info = invocationParamBuilder.addNextParameter(type, false, remappedIndex, couldBeRemapped ? null : codegen.getFrameMap());
+                info = invocationParamBuilder.addNextParameter(type, false, remappedIndex);
             }
 
             putParameterOnStack(info);
@@ -343,16 +337,15 @@ public class InlineCodegen implements CallGenerator {
     public void putHiddenParams() {
         List<JvmMethodParameterSignature> valueParameters = jvmSignature.getValueParameters();
 
-        FrameMap frameMap = codegen.getFrameMap();
         if (!isStaticMethod(functionDescriptor, context)) {
-            invocationParamBuilder.addNextParameter(AsmTypeConstants.OBJECT_TYPE, false, null, frameMap);
+            invocationParamBuilder.addNextParameter(AsmTypeConstants.OBJECT_TYPE, false, null);
         }
 
         for (JvmMethodParameterSignature param : valueParameters) {
             if (param.getKind() == JvmMethodParameterKind.VALUE) {
                 break;
             }
-            invocationParamBuilder.addNextParameter(param.getAsmType(), false, null, frameMap);
+            invocationParamBuilder.addNextParameter(param.getAsmType(), false, null);
         }
 
         List<ParameterInfo> infos = invocationParamBuilder.listNotCaptured();
@@ -377,7 +370,7 @@ public class InlineCodegen implements CallGenerator {
     }
 
     public void rememberClosure(JetFunctionLiteralExpression expression, Type type) {
-        ParameterInfo closureInfo = invocationParamBuilder.addNextParameter(type, true, null, codegen.getFrameMap());
+        ParameterInfo closureInfo = invocationParamBuilder.addNextParameter(type, true, null);
 
         LambdaInfo info = new LambdaInfo(expression, typeMapper);
         expressionMap.put(closureInfo.getIndex(), info);
@@ -386,14 +379,10 @@ public class InlineCodegen implements CallGenerator {
     }
 
     private void putClosureParametersOnStack() {
-        //TODO: SORT
-        int currentSize = invocationParamBuilder.buildParameters().totalSize();//there is just real parameterss
         for (LambdaInfo next : expressionMap.values()) {
             if (next.closure != null) {
                 activeLambda = next;
-                next.setParamOffset(currentSize);
                 codegen.pushClosureOnStack(next.closure, false, this);
-                currentSize += next.getCapturedVarsSize();
             }
         }
         activeLambda = null;
