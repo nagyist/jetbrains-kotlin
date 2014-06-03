@@ -179,7 +179,7 @@ public class MethodInliner {
                     }
 
                     int valueParamShift = getNextLocalIndex();//NB: don't inline cause it changes
-                    putStackValuesIntoLocals(info.getParamsWithoutCapturedValOrVar(), valueParamShift, this, desc);
+                    putStackValuesIntoLocals(info.getInvokeParamsWithoutCaptured(), valueParamShift, this, desc);
 
                     Parameters lambdaParameters = info.addAllParameters(nodeRemapper);
 
