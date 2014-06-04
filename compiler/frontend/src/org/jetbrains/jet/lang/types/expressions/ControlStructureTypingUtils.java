@@ -158,6 +158,7 @@ public class ControlStructureTypingUtils {
 
     /*package*/ static Call createCallForSpecialConstruction(
             @NotNull final JetExpression expression,
+            @NotNull final JetExpression calleeExpression,
             @NotNull List<? extends JetExpression> arguments
     ) {
         final List<ValueArgument> valueArguments = Lists.newArrayList();
@@ -186,7 +187,7 @@ public class ControlStructureTypingUtils {
             @Nullable
             @Override
             public JetExpression getCalleeExpression() {
-                return expression;
+                return calleeExpression;
             }
 
             @Nullable
@@ -323,12 +324,15 @@ public class ControlStructureTypingUtils {
             }
 
             @Override
+            public void bindCall(@NotNull BindingTrace trace, @NotNull Call call) {
+                trace.record(CALL, call.getCalleeExpression(), call);
+            }
+
+            @Override
             public <D extends CallableDescriptor> void bindResolvedCall(
                     @NotNull BindingTrace trace, @NotNull ResolvedCall<D> resolvedCall
             ) {
                 trace.record(RESOLVED_CALL, call.getCalleeExpression(), resolvedCall);
-                trace.record(CALL, call.getCalleeExpression(), call);
-
             }
 
             @Override
@@ -342,8 +346,7 @@ public class ControlStructureTypingUtils {
                 if (status.hasErrorInConstrainingTypes()) {
                     return;
                 }
-                JetExpression expression = call.getCalleeExpression();
-                if (expression == null) return;
+                JetExpression expression = (JetExpression) call.getCallElement();
                 if (status.hasOnlyErrorsFromPosition(ConstraintPosition.EXPECTED_TYPE_POSITION) || status.hasConflictingConstraints()) {
                     expression.accept(checkTypeVisitor, new CheckTypeContext(trace, data.expectedType));
                     return;
