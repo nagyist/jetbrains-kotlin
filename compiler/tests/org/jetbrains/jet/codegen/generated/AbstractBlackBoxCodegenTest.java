@@ -51,8 +51,6 @@ public abstract class AbstractBlackBoxCodegenTest extends CodegenTestCase {
     }
 
     public void doTestMultiFile(@NotNull String folderName) {
-        createEnvironmentWithMockJdkAndIdeaAnnotations(ConfigurationKind.ALL);
-
         final List<String> files = new ArrayList<String>(2);
         FileUtil.processFilesRecursively(new File(folderName), new Processor<File>() {
             @Override
@@ -64,14 +62,25 @@ public abstract class AbstractBlackBoxCodegenTest extends CodegenTestCase {
             }
         });
 
+        doTestMultiFile(files);
+    }
+
+    private void doTestMultiFile(@NotNull List<String> files) {
         Collections.sort(files);
+
+        createEnvironmentWithMockJdkAndIdeaAnnotations(ConfigurationKind.ALL);
 
         loadFiles(files.toArray(new String[files.size()]));
         blackBox();
     }
 
-    public void doTestMultiFileWithInlineCheck(@NotNull String folderName) {
-        doTestMultiFile(folderName);
+    public void doTestMultiFileWithInlineCheck(@NotNull String firstFileName) {
+        firstFileName = firstFileName.substring("compiler/testData/codegen/".length());
+        List<String> ifiles = new ArrayList<String>(2);
+        ifiles.add(firstFileName);
+        ifiles.add(firstFileName.substring(0, firstFileName.length() - "1.kt".length()) + "2.kt");
+
+        doTestMultiFile(ifiles);
         InlineTestUtil.checkNoCallsToInline(initializedClassLoader.getAllGeneratedFiles());
     }
 
