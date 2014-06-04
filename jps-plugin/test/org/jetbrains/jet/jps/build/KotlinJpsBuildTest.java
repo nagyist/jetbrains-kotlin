@@ -21,6 +21,7 @@ import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.testFramework.LightVirtualFile;
 import com.intellij.util.Function;
 import com.intellij.util.containers.ContainerUtil;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.jet.codegen.PackageCodegen;
 import org.jetbrains.jet.lang.resolve.name.FqName;
 import org.jetbrains.jps.builders.BuildResult;
@@ -28,9 +29,15 @@ import org.jetbrains.jps.model.java.JpsJavaDependencyScope;
 import org.jetbrains.jps.model.java.JpsJavaExtensionService;
 import org.jetbrains.jps.model.module.JpsModule;
 import org.jetbrains.jps.util.JpsPathUtil;
+import org.jetbrains.org.objectweb.asm.ClassReader;
+import org.jetbrains.org.objectweb.asm.ClassVisitor;
+import org.jetbrains.org.objectweb.asm.MethodVisitor;
+import org.jetbrains.org.objectweb.asm.Opcodes;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Set;
+import java.util.TreeSet;
 
 public class KotlinJpsBuildTest extends AbstractKotlinJpsBuildTestCase {
     private static final String PROJECT_NAME = "kotlinProject";
@@ -189,23 +196,46 @@ public class KotlinJpsBuildTest extends AbstractKotlinJpsBuildTestCase {
         doTest();
     }
 
-    public void testCircularDependenciesWithKotlinFilesDifferentPackages() {
+    public void testCircularDependenciesDifferentPackages() {
         initProject();
         BuildResult result = makeAll();
 
         // Check that outputs are located properly
-        for (JpsModule module : myProject.getModules()) {
-            if (module.getName().equals("module2")) {
-                assertFilesExistInOutput(module, "kt1/Kt1Package.class");
-            }
-            if (module.getName().equals("kotlinProject")) {
-                assertFilesExistInOutput(module, "kt2/Kt2Package.class");
-            }
-        }
+        assertFilesExistInOutput(findModule("module2"), "kt1/Kt1Package.class");
+        assertFilesExistInOutput(findModule("kotlinProject"), "kt2/Kt2Package.class");
+
         result.assertSuccessful();
 
         checkPackageDeletedFromOutputWhen(Operation.CHANGE, "kotlinProject", "src/kt2.kt", "kt2.Kt2Package");
         checkPackageDeletedFromOutputWhen(Operation.CHANGE, "module2", "module2/src/kt1.kt", "kt1.Kt1Package");
+    }
+
+    public void testCircularDependenciesSamePackage() throws IOException {
+        initProject();
+        BuildResult result = makeAll();
+        result.assertSuccessful();
+
+        // Check that outputs are located properly
+        File facadeWithA = findFileInOutputDir(findModule("module1"), "test/TestPackage.class");
+        File facadeWithB = findFileInOutputDir(findModule("module2"), "test/TestPackage.class");
+        assertSameElements(getMethodsOfClass(facadeWithA), "a", "getA");
+        assertSameElements(getMethodsOfClass(facadeWithB), "b", "getB", "setB");
+
+        checkPackageDeletedFromOutputWhen(Operation.CHANGE, "module1", "module1/src/a.kt", "test.TestPackage");
+        checkPackageDeletedFromOutputWhen(Operation.CHANGE, "module2", "module2/src/b.kt", "test.TestPackage");
+    }
+
+    @NotNull
+    private static Set<String> getMethodsOfClass(@NotNull File classFile) throws IOException {
+        final Set<String> result = new TreeSet<String>();
+        new ClassReader(FileUtil.loadFileBytes(classFile)).accept(new ClassVisitor(Opcodes.ASM5) {
+            @Override
+            public MethodVisitor visitMethod(int access, String name, String desc, String signature, String[] exceptions) {
+                result.add(name);
+                return null;
+            }
+        }, 0);
+        return result;
     }
 
     public void testReexportedDependency() {
@@ -216,22 +246,37 @@ public class KotlinJpsBuildTest extends AbstractKotlinJpsBuildTestCase {
                                        public boolean value(JpsModule module) {
                                            return module.getName().equals("module2");
                                        }
-                                   }), true);
+                                   }), true
+        );
         makeAll().assertSuccessful();
     }
 
+    @NotNull
+    private JpsModule findModule(@NotNull String name) {
+        for (JpsModule module : myProject.getModules()) {
+            if (module.getName().equals(name)) {
+                return module;
+            }
+        }
+        throw new IllegalStateException("Couldn't find module " + name);
+    }
+
     private static void assertFilesExistInOutput(JpsModule module, String... relativePaths) {
-        String outputUrl = JpsJavaExtensionService.getInstance().getOutputUrl(module, false);
-        assertNotNull(outputUrl);
-        File outputDir = new File(JpsPathUtil.urlToPath(outputUrl));
         for (String path : relativePaths) {
-            File outputFile = new File(outputDir, path);
+            File outputFile = findFileInOutputDir(module, path);
             assertTrue("Output not written: " +
                        outputFile.getAbsolutePath() +
                        "\n Directory contents: \n" +
                        dirContents(outputFile.getParentFile()),
                        outputFile.exists());
         }
+    }
+
+    private static File findFileInOutputDir(JpsModule module, String relativePath) {
+        String outputUrl = JpsJavaExtensionService.getInstance().getOutputUrl(module, false);
+        assertNotNull(outputUrl);
+        File outputDir = new File(JpsPathUtil.urlToPath(outputUrl));
+        return new File(outputDir, relativePath);
     }
 
     private void checkExcludesNotAffectedToOutput(String module, String... excludeRelativePaths) {
@@ -246,7 +291,7 @@ public class KotlinJpsBuildTest extends AbstractKotlinJpsBuildTestCase {
         File outputDir = new File(JpsPathUtil.urlToPath(outputUrl));
         for (String path : relativePaths) {
             File outputFile = new File(outputDir, path);
-            assertFalse("Output directory \"" + outputFile.getAbsolutePath() + "\" contains \"" + path  + "\"",
+            assertFalse("Output directory \"" + outputFile.getAbsolutePath() + "\" contains \"" + path + "\"",
                         outputFile.exists());
         }
     }

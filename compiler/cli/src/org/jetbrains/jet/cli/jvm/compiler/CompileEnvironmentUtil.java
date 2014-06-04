@@ -16,12 +16,23 @@
 
 package org.jetbrains.jet.cli.jvm.compiler;
 
+import com.google.common.collect.Lists;
 import com.intellij.openapi.Disposable;
+import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Disposer;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.util.io.FileUtilRt;
+import com.intellij.openapi.vfs.StandardFileSystems;
+import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.openapi.vfs.VirtualFileManager;
+import com.intellij.openapi.vfs.VirtualFileSystem;
+import com.intellij.psi.PsiFile;
+import com.intellij.psi.PsiManager;
 import com.intellij.util.Function;
 import com.intellij.util.containers.ContainerUtil;
+import kotlin.Function1;
+import kotlin.Unit;
+import kotlin.io.IoPackage;
 import kotlin.modules.AllModules;
 import kotlin.modules.Module;
 import org.jetbrains.annotations.NotNull;
@@ -32,7 +43,6 @@ import org.jetbrains.jet.cli.common.messages.MessageCollector;
 import org.jetbrains.jet.cli.common.messages.MessageRenderer;
 import org.jetbrains.jet.cli.common.modules.ModuleDescription;
 import org.jetbrains.jet.cli.common.modules.ModuleXmlParser;
-import org.jetbrains.jet.cli.common.output.OutputDirector;
 import org.jetbrains.jet.cli.common.output.outputUtils.OutputUtilsPackage;
 import org.jetbrains.jet.cli.jvm.JVMConfigurationKeys;
 import org.jetbrains.jet.codegen.ClassFileFactory;
@@ -40,8 +50,10 @@ import org.jetbrains.jet.codegen.GeneratedClassLoader;
 import org.jetbrains.jet.codegen.state.GenerationState;
 import org.jetbrains.jet.config.CommonConfigurationKeys;
 import org.jetbrains.jet.config.CompilerConfiguration;
+import org.jetbrains.jet.lang.psi.JetFile;
 import org.jetbrains.jet.lang.resolve.java.PackageClassUtils;
 import org.jetbrains.jet.lang.resolve.name.FqName;
+import org.jetbrains.jet.plugin.JetFileType;
 import org.jetbrains.jet.utils.KotlinPaths;
 import org.jetbrains.jet.utils.PathUtil;
 import org.jetbrains.jet.utils.UtilsPackage;
@@ -52,6 +64,7 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.jar.*;
 
@@ -67,28 +80,28 @@ public class CompileEnvironmentUtil {
     }
 
     @NotNull
-    public static ModuleChunk loadModuleDescriptions(KotlinPaths paths, String moduleDefinitionFile, MessageCollector messageCollector) {
+    public static List<Module> loadModuleDescriptions(KotlinPaths paths, String moduleDefinitionFile, MessageCollector messageCollector) {
         File file = new File(moduleDefinitionFile);
         if (!file.exists()) {
             messageCollector.report(ERROR, "Module definition file does not exist: " + moduleDefinitionFile, NO_LOCATION);
-            return ModuleChunk.EMPTY;
+            return Collections.emptyList();
         }
         String extension = FileUtilRt.getExtension(moduleDefinitionFile);
         if ("ktm".equalsIgnoreCase(extension)) {
-            return new ModuleChunk(loadModuleScript(paths, moduleDefinitionFile, messageCollector));
+            return loadModuleScript(paths, moduleDefinitionFile, messageCollector);
         }
         if ("xml".equalsIgnoreCase(extension)) {
-            return new ModuleChunk(ContainerUtil.map(
+            return ContainerUtil.map(
                     ModuleXmlParser.parse(moduleDefinitionFile, messageCollector),
                     new Function<ModuleDescription, Module>() {
                         @Override
                         public Module fun(ModuleDescription description) {
                             return new DescriptionToModuleAdapter(description);
                         }
-                    }));
+                    });
         }
         messageCollector.report(ERROR, "Unknown module definition type: " + moduleDefinitionFile, NO_LOCATION);
-        return ModuleChunk.EMPTY;
+        return Collections.emptyList();
     }
 
     @NotNull
@@ -249,7 +262,7 @@ public class CompileEnvironmentUtil {
 
     static void writeOutputToDirOrJar(
             @Nullable File jar,
-            @Nullable OutputDirector outputDir,
+            @Nullable File outputDir,
             boolean includeRuntime,
             @Nullable FqName mainClass,
             @NotNull ClassFileFactory outputFiles,
@@ -264,6 +277,51 @@ public class CompileEnvironmentUtil {
         else {
             throw new CompileEnvironmentException("Output directory or jar file is not specified - no files will be saved to the disk");
         }
+    }
+
+    @NotNull
+    public static List<JetFile> getJetFiles(
+            @NotNull final Project project,
+            @NotNull List<String> sourceRoots,
+            @NotNull Function1<String, Unit> reportError
+    ) {
+        final VirtualFileSystem localFileSystem = VirtualFileManager.getInstance().getFileSystem(StandardFileSystems.FILE_PROTOCOL);
+
+        final List<JetFile> result = Lists.newArrayList();
+
+        for (String sourceRootPath : sourceRoots) {
+            if (sourceRootPath == null) {
+                continue;
+            }
+
+            VirtualFile vFile = localFileSystem.findFileByPath(sourceRootPath);
+            if (vFile == null) {
+                reportError.invoke("Source file or directory not found: " + sourceRootPath);
+                continue;
+            }
+            if (!vFile.isDirectory() && vFile.getFileType() != JetFileType.INSTANCE) {
+                reportError.invoke("Source entry is not a Kotlin file: " + sourceRootPath);
+                continue;
+            }
+
+            IoPackage.recurse(new File(sourceRootPath), new Function1<File, Unit>() {
+                @Override
+                public Unit invoke(File file) {
+                    if (file.isFile()) {
+                        VirtualFile fileByPath = localFileSystem.findFileByPath(file.getAbsolutePath());
+                        if (fileByPath != null) {
+                            PsiFile psiFile = PsiManager.getInstance(project).findFile(fileByPath);
+                            if (psiFile instanceof JetFile) {
+                                result.add((JetFile) psiFile);
+                            }
+                        }
+                    }
+                    return Unit.VALUE;
+                }
+            });
+        }
+
+        return result;
     }
 
     private static class DescriptionToModuleAdapter implements Module {

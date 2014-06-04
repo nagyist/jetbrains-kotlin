@@ -31,13 +31,13 @@ import com.intellij.openapi.fileTypes.PlainTextFileType;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Disposer;
 import com.intellij.openapi.vfs.VirtualFile;
-import com.intellij.psi.PsiDocumentManager;
 import com.intellij.psi.PsiElementFinder;
-import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiManager;
 import com.intellij.psi.compiled.ClassFileDecompilers;
 import com.intellij.psi.impl.compiled.ClsCustomNavigationPolicy;
 import com.intellij.psi.impl.file.impl.JavaFileManager;
+import kotlin.Function1;
+import kotlin.Unit;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.TestOnly;
 import org.jetbrains.jet.CompilerModeProvider;
@@ -203,9 +203,15 @@ public class JetCoreEnvironment {
         for (File path : configuration.getList(JVMConfigurationKeys.ANNOTATIONS_PATH_KEY)) {
             addExternalAnnotationsRoot(path);
         }
-        for (String path : configuration.getList(CommonConfigurationKeys.SOURCE_ROOTS_KEY)) {
-            addSources(path);
-        }
+        sourceFiles.addAll(
+                CompileEnvironmentUtil
+                        .getJetFiles(getProject(), configuration.getList(CommonConfigurationKeys.SOURCE_ROOTS_KEY), new Function1<String, Unit>() {
+                            @Override
+                            public Unit invoke(String s) {
+                                report(ERROR, s);
+                                return Unit.VALUE;
+                            }
+                        }));
 
         JetScriptDefinitionProvider.getInstance(project).addScriptDefinitions(
                 configuration.getList(CommonConfigurationKeys.SCRIPT_DEFINITIONS_KEY));
@@ -238,44 +244,6 @@ public class JetCoreEnvironment {
             return;
         }
         annotationsManager.addExternalAnnotationsRoot(PathUtil.jarFileOrDirectoryToVirtualFile(path));
-    }
-
-    private void addSources(File file) {
-        if (file.isDirectory()) {
-            File[] files = file.listFiles();
-            if (files != null) {
-                for (File child : files) {
-                    addSources(child);
-                }
-            }
-        }
-        else {
-            VirtualFile fileByPath = getMyApplicationEnvironment().getLocalFileSystem().findFileByPath(file.getAbsolutePath());
-            if (fileByPath != null) {
-                PsiFile psiFile = PsiManager.getInstance(getProject()).findFile(fileByPath);
-                if (psiFile instanceof JetFile) {
-                    sourceFiles.add((JetFile) psiFile);
-                }
-            }
-        }
-    }
-
-    private void addSources(String path) {
-        if (path == null) {
-            return;
-        }
-
-        VirtualFile vFile = getMyApplicationEnvironment().getLocalFileSystem().findFileByPath(path);
-        if (vFile == null) {
-            report(ERROR, "Source file or directory not found: " + path);
-            return;
-        }
-        if (!vFile.isDirectory() && vFile.getFileType() != JetFileType.INSTANCE) {
-            report(ERROR, "Source entry is not a Kotlin file: " + path);
-            return;
-        }
-
-        addSources(new File(path));
     }
 
     private void addToClasspath(File path) {
