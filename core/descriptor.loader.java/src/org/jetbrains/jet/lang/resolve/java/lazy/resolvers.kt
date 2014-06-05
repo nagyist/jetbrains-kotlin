@@ -29,7 +29,6 @@ import org.jetbrains.jet.lang.resolve.kotlin.KotlinJvmBinaryClass
 
 trait LazyJavaClassResolver {
     fun resolveClass(javaClass: JavaClass): ClassDescriptor?
-    fun resolveClassByFqName(fqName: FqName): ClassDescriptor?
 }
 
 trait TypeParameterResolver {
@@ -113,4 +112,9 @@ private fun LazyJavaResolverContext.resolveBinaryClass(kotlinClass: KotlinJvmBin
     }
 
     return null
+}
+
+fun LazyJavaResolverContext.resolveTopLevelClassInModule(fqName: FqName): ClassDescriptor? {
+    return packageFragmentProvider.getModule().getPackage(fqName.parent())
+            ?.getMemberScope()?.getClassifier(fqName.shortName()) as? ClassDescriptor
 }
