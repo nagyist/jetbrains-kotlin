@@ -99,7 +99,9 @@ public class KotlinBuilder extends ModuleLevelBuilder {
             return ExitCode.NOTHING_DONE;
         }
 
-        messageCollector.report(INFO, "Kotlin JPS plugin version " + KotlinVersion.VERSION, NO_LOCATION);
+        if (hasKotlinFiles(chunk)) {
+            messageCollector.report(INFO, "Kotlin JPS plugin version " + KotlinVersion.VERSION, NO_LOCATION);
+        }
 
         ModuleBuildTarget representativeTarget = chunk.representativeTarget();
 
@@ -179,6 +181,7 @@ public class KotlinBuilder extends ModuleLevelBuilder {
 
             runK2JvmCompiler(commonArguments, k2JvmArguments, compilerSettings, messageCollector, environment,
                              moduleFile, outputItemCollector);
+            moduleFile.delete();
         }
 
         // If there's only one target, this map is empty: get() always returns null, and the representativeTarget will be used below
