@@ -2,7 +2,7 @@ import test.*
 
 class Z {}
 
-fun <R> test1(local: R, nonLocal: R, doNonLocal: Boolean): N {
+fun test1(local: Int, nonLocal: String, doNonLocal: Boolean): String {
 
     val localResult = doCall {
         if (doNonLocal) {
@@ -11,7 +11,7 @@ fun <R> test1(local: R, nonLocal: R, doNonLocal: Boolean): N {
         local
     }
 
-    if (localResult == "LOCAL") {
+    if (localResult == 11) {
         return "OK_LOCAL"
     }
     else {
@@ -20,10 +20,10 @@ fun <R> test1(local: R, nonLocal: R, doNonLocal: Boolean): N {
 }
 
 fun box(): String {
-    val test1 = test1("LOCAL", "fail", false)
+    val test1 = test1(11, "fail", false)
     if (test1 != "OK_LOCAL") return "test1: ${test1}"
 
-    val test2 = test1("fail", "OK_NONLOCAL", true)
+    val test2 = test1(-1, "OK_NONLOCAL", true)
     if (test2 != "OK_NONLOCAL") return "test2: ${test2}"
 
     return "OK"

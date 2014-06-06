@@ -1,7 +1,5 @@
 package test
 
-public class Data()
-
-public inline fun <T> doCall(block: (T)-> R, param: T) : R {
-    return block(this)
+public inline fun <R> doCall(block: ()-> R) : R {
+    return block()
 }
