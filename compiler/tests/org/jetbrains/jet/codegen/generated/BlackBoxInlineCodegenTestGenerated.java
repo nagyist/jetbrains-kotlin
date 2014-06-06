@@ -281,9 +281,9 @@ public class BlackBoxInlineCodegenTestGenerated extends AbstractBlackBoxCodegenT
             doTestMultiFileWithInlineCheck("compiler/testData/codegen/boxInline/nonLocalReturns/justReturnInLambda.1.kt");
         }
         
-        @TestMetadata("localReturn.1.kt")
-        public void testLocalReturn() throws Exception {
-            doTestMultiFileWithInlineCheck("compiler/testData/codegen/boxInline/nonLocalReturns/localReturn.1.kt");
+        @TestMetadata("noInlineLocalReturn.1.kt")
+        public void testNoInlineLocalReturn() throws Exception {
+            doTestMultiFileWithInlineCheck("compiler/testData/codegen/boxInline/nonLocalReturns/noInlineLocalReturn.1.kt");
         }
         
         @TestMetadata("simple.1.kt")
