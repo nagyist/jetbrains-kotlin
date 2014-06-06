@@ -364,15 +364,17 @@ public class InlineCodegen implements CallGenerator {
     }
 
     public static boolean isInliningClosure(JetExpression expression, ValueParameterDescriptor valueParameterDescriptora) {
-        //TODO deparenthisise
-        return expression instanceof JetFunctionLiteralExpression &&
+        //TODO deparenthisise typed
+        JetExpression deparenthesize = JetPsiUtil.deparenthesize(expression);
+        return deparenthesize instanceof JetFunctionLiteralExpression &&
                !InlineUtil.hasNoinlineAnnotation(valueParameterDescriptora);
     }
 
-    public void rememberClosure(JetFunctionLiteralExpression expression, Type type) {
+    public void rememberClosure(JetExpression expression, Type type) {
+        JetFunctionLiteralExpression lambda = (JetFunctionLiteralExpression) JetPsiUtil.deparenthesize(expression);
         ParameterInfo closureInfo = invocationParamBuilder.addNextParameter(type, true, null);
 
-        LambdaInfo info = new LambdaInfo(expression, typeMapper);
+        LambdaInfo info = new LambdaInfo(lambda, typeMapper);
         expressionMap.put(closureInfo.getIndex(), info);
 
         closureInfo.setLambda(info);
@@ -435,7 +437,7 @@ public class InlineCodegen implements CallGenerator {
     ) {
         //TODO deparenthisise
         if (isInliningClosure(argumentExpression, valueParameterDescriptor)) {
-            rememberClosure((JetFunctionLiteralExpression) argumentExpression, parameterType);
+            rememberClosure(argumentExpression, parameterType);
         } else {
             StackValue value = codegen.gen(argumentExpression);
             putValueIfNeeded(valueParameterDescriptor, parameterType, value);
