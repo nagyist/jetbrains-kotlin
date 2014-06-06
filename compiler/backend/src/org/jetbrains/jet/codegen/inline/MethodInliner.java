@@ -186,7 +186,7 @@ public class MethodInliner {
                     InlinedLambdaRemapper newCapturedRemapper =
                             new InlinedLambdaRemapper(info.getLambdaClassType().getInternalName(), nodeRemapper, lambdaParameters);
 
-                    setInlining(true);
+                    setLambdaInlining(true);
                     MethodInliner inliner = new MethodInliner(info.getNode(), lambdaParameters,
                                                               inliningContext.subInlineLambda(info),
                                                               newCapturedRemapper, true /*cause all calls in same module as lambda*/,
@@ -201,7 +201,7 @@ public class MethodInliner {
                             typeMapper.mapSignature(ClosureCodegen.getErasedInvokeFunction(info.getFunctionDescriptor())).getAsmMethod();
                     Method delegate = typeMapper.mapSignature(info.getFunctionDescriptor()).getAsmMethod();
                     StackValue.onStack(delegate.getReturnType()).put(bridge.getReturnType(), this);
-                    setInlining(false);
+                    setLambdaInlining(false);
                 }
                 else if (isAnonymousConstructorCall(owner, name)) { //TODO add method
                     assert invocation != null : "<init> call not corresponds to new call" + owner + " " + name;
