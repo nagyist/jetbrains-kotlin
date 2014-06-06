@@ -275,6 +275,11 @@ public class BlackBoxInlineCodegenTestGenerated extends AbstractBlackBoxCodegenT
             JetTestUtils.assertAllTestsPresentByMetadata(this.getClass(), "org.jetbrains.jet.generators.tests.TestsPackage", new File("compiler/testData/codegen/boxInline/nonLocalReturns"), Pattern.compile("^(.+)\\.1.kt$"), true);
         }
         
+        @TestMetadata("justReturnInLambda.1.kt")
+        public void testJustReturnInLambda() throws Exception {
+            doTestMultiFileWithInlineCheck("compiler/testData/codegen/boxInline/nonLocalReturns/justReturnInLambda.1.kt");
+        }
+        
         @TestMetadata("simple.1.kt")
         public void testSimple() throws Exception {
             doTestMultiFileWithInlineCheck("compiler/testData/codegen/boxInline/nonLocalReturns/simple.1.kt");
