@@ -221,7 +221,7 @@ public class InlineCodegen implements CallGenerator {
 
         LocalVarRemapper remapper = new LocalVarRemapper(parameters, initialFrameSize);
 
-        return inliner.doInline(codegen.v, remapper);
+        return inliner.doInline(codegen.v, remapper, true, false);
     }
 
     private void generateClosuresBodies() {
