@@ -1569,7 +1569,12 @@ public class ExpressionCodegen extends JetVisitor<StackValue, StackValue> implem
         JetExpression returnedExpression = expression.getReturnedExpression();
         if (returnedExpression != null) {
             CallableMemberDescriptor descriptor = getContext().getContextDescriptor();
-            Type returnType = isNonLocalReturn(descriptor) ?
+            boolean isNonLocalReturn = isNonLocalReturn(descriptor, expression);
+            if (isNonLocalReturn && !state.isInlineEnabled()) {
+                throw new CompilationException("Non local returns requires enabled inlining", null, returnedExpression);
+            }
+
+            Type returnType = isNonLocalReturn ?
                               typeMapper.mapReturnType(getContainingFunctionNotLambda((FunctionDescriptor) descriptor)) : this.returnType;
             gen(returnedExpression, returnType);
             boolean hasFinallyBLocks = hasFinallyBLocks();
@@ -1589,8 +1594,11 @@ public class ExpressionCodegen extends JetVisitor<StackValue, StackValue> implem
         return StackValue.none();
     }
 
-    private boolean isNonLocalReturn(@NotNull CallableMemberDescriptor descriptor) {
-        return isLocalFunOrLambda(descriptor) && descriptor.getName().isSpecial();
+    private static boolean isNonLocalReturn(@NotNull CallableMemberDescriptor descriptor, @NotNull JetReturnExpression expression) {
+        return  //is call inside lambda
+                isLocalFunOrLambda(descriptor) && descriptor.getName().isSpecial() &&
+                //and there is not explicit local return: return@lambda
+                expression.getLabelName() == null;
     }
 
     public void returnExpression(JetExpression expr) {
