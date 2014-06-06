@@ -269,4 +269,8 @@ public class InlineCodegenUtil {
     public static boolean isCapturedFieldName(@NotNull String fieldName) {
         return fieldName.startsWith(CAPTURED_FIELD_PREFIX) || THIS$0.equals(fieldName) || RECEIVER$0.equals(fieldName);
     }
+
+    public static boolean isReturnOpcode(int opcode) {
+        return opcode >= Opcodes.IRETURN && opcode <= Opcodes.RETURN;
+    }
 }

@@ -87,25 +87,49 @@ public class MethodInliner {
         this.result = InlineResult.create();
     }
 
-
-    public InlineResult doInline(MethodVisitor adapter, LocalVarRemapper remapper) {
-        return doInline(adapter, remapper, true);
-    }
-
     public InlineResult doInline(
             MethodVisitor adapter,
             LocalVarRemapper remapper,
-            boolean remapReturn
+            boolean remapReturn,
+            boolean isInliningLambda
     ) {
+
+
         //analyze body
-        MethodNode transformedNode = markPlacesForInlineAndRemoveInlinable(node);
+        MethodNode transformedNode = markPlacesForInlineAndRemoveInlinable(node, isInliningLambda);
+
+        //substitute returns with "goto end" instruction to keep non local returns in lambdas
+        final Label end = new Label();
+        if (remapReturn && !isInliningLambda) {
+            MethodNode gotoInsteadReturns = new MethodNode(InlineCodegenUtil.API, transformedNode.access, transformedNode.name, transformedNode.desc,
+                                             transformedNode.signature,
+                                             transformedNode.exceptions.toArray(new String[transformedNode.exceptions.size()]));
+            transformedNode.accept(new MethodVisitor(InlineCodegenUtil.API, gotoInsteadReturns) {
+                @Override
+                public void visitInsn(int opcode) {
+                    if (InlineCodegenUtil.isReturnOpcode(opcode)) {
+                        super.visitJumpInsn(Opcodes.GOTO, end);
+                    } else {
+                        super.visitInsn(opcode);
+                    }
+                }
+
+                @Override
+                public void visitEnd() {
+                    super.visitLabel(end);
+                    super.visitEnd();
+                }
+            });
+
+            transformedNode = gotoInsteadReturns;
+        }
 
         transformedNode = doInline(transformedNode);
         removeClosureAssertions(transformedNode);
-        transformedNode.instructions.resetLabels();
+        InsnList instructions = transformedNode.instructions;
+        instructions.resetLabels();
 
-        Label end = new Label();
-        RemapVisitor visitor = new RemapVisitor(adapter, end, remapper, remapReturn, nodeRemapper);
+        RemapVisitor visitor = new RemapVisitor(adapter, end, remapper, false, nodeRemapper);
         try {
             transformedNode.accept(visitor);
         }
@@ -193,7 +217,7 @@ public class MethodInliner {
                                                               "Lambda inlining " + info.getLambdaClassType().getInternalName());
 
                     LocalVarRemapper remapper = new LocalVarRemapper(lambdaParameters, valueParamShift);
-                    InlineResult lambdaResult = inliner.doInline(this.mv, remapper);//TODO add skipped this and receiver
+                    InlineResult lambdaResult = inliner.doInline(this.mv, remapper, true, true);//TODO add skipped this and receiver
                     result.addAllClassesToRemove(lambdaResult);
 
                     //return value boxing/unboxing
@@ -299,8 +323,17 @@ public class MethodInliner {
     }
 
     @NotNull
-    protected MethodNode markPlacesForInlineAndRemoveInlinable(@NotNull MethodNode node) {
+    protected MethodNode markPlacesForInlineAndRemoveInlinable(@NotNull MethodNode node, boolean isInliningLambda) {
         node = prepareNode(node);
+
+        //at this point we shpud generate additional return to lambda
+        LdcInsnNode ldcNode = new LdcInsnNode("");
+        InsnNode retNode = new InsnNode(Opcodes.ARETURN);
+        if (isInliningLambda) {
+            node.instructions.add(ldcNode);
+            node.instructions.add(retNode);
+        }
+
 
         Analyzer<SourceValue> analyzer = new Analyzer<SourceValue>(new SourceInterpreter());
         Frame<SourceValue>[] sources;
@@ -387,6 +420,12 @@ public class MethodInliner {
             if (deadLabels.contains(block.start) && deadLabels.contains(block.end)) {
                 iterator.remove();
             }
+        }
+
+        //NOTE: nodes can be deleted in clean dead code so we should check getNext() != null
+        if (isInliningLambda && ldcNode.getNext() != null) {
+            node.instructions.remove(ldcNode);
+            node.instructions.remove(retNode);
         }
 
         return node;
