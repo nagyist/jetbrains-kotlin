@@ -1,7 +1,5 @@
 import test.*
 
-class Z {}
-
 fun test1(local: Int, nonLocal: String, doNonLocal: Boolean): String {
 
     val localResult = doCall {
