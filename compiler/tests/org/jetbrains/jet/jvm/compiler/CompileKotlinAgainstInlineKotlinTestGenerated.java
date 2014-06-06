@@ -270,6 +270,7 @@ public class CompileKotlinAgainstInlineKotlinTestGenerated extends AbstractCompi
     }
     
     @TestMetadata("compiler/testData/codegen/boxInline/nonLocalReturns")
+    @InnerTestClasses({NonLocalReturns.Deparenthesize.class})
     public static class NonLocalReturns extends AbstractCompileKotlinAgainstKotlinTest {
         public void testAllFilesPresentInNonLocalReturns() throws Exception {
             JetTestUtils.assertAllTestsPresentByMetadata(this.getClass(), "org.jetbrains.jet.generators.tests.TestsPackage", new File("compiler/testData/codegen/boxInline/nonLocalReturns"), Pattern.compile("^(.+)\\.1.kt$"), true);
@@ -280,11 +281,40 @@ public class CompileKotlinAgainstInlineKotlinTestGenerated extends AbstractCompi
             doBoxTestWithInlineCheck("compiler/testData/codegen/boxInline/nonLocalReturns/justReturnInLambda.1.kt");
         }
         
+        @TestMetadata("localReturn.1.kt")
+        public void testLocalReturn() throws Exception {
+            doBoxTestWithInlineCheck("compiler/testData/codegen/boxInline/nonLocalReturns/localReturn.1.kt");
+        }
+        
         @TestMetadata("simple.1.kt")
         public void testSimple() throws Exception {
             doBoxTestWithInlineCheck("compiler/testData/codegen/boxInline/nonLocalReturns/simple.1.kt");
         }
         
+        @TestMetadata("compiler/testData/codegen/boxInline/nonLocalReturns/deparenthesize")
+        public static class Deparenthesize extends AbstractCompileKotlinAgainstKotlinTest {
+            public void testAllFilesPresentInDeparenthesize() throws Exception {
+                JetTestUtils.assertAllTestsPresentByMetadata(this.getClass(), "org.jetbrains.jet.generators.tests.TestsPackage", new File("compiler/testData/codegen/boxInline/nonLocalReturns/deparenthesize"), Pattern.compile("^(.+)\\.1.kt$"), true);
+            }
+            
+            @TestMetadata("bracket.1.kt")
+            public void testBracket() throws Exception {
+                doBoxTestWithInlineCheck("compiler/testData/codegen/boxInline/nonLocalReturns/deparenthesize/bracket.1.kt");
+            }
+            
+            @TestMetadata("labeled.1.kt")
+            public void testLabeled() throws Exception {
+                doBoxTestWithInlineCheck("compiler/testData/codegen/boxInline/nonLocalReturns/deparenthesize/labeled.1.kt");
+            }
+            
+        }
+        
+        public static Test innerSuite() {
+            TestSuite suite = new TestSuite("NonLocalReturns");
+            suite.addTestSuite(NonLocalReturns.class);
+            suite.addTestSuite(Deparenthesize.class);
+            return suite;
+        }
     }
     
     @TestMetadata("compiler/testData/codegen/boxInline/simple")
@@ -446,7 +476,7 @@ public class CompileKotlinAgainstInlineKotlinTestGenerated extends AbstractCompi
         suite.addTestSuite(LambdaTransformation.class);
         suite.addTestSuite(LocalFunInLambda.class);
         suite.addTestSuite(NoInline.class);
-        suite.addTestSuite(NonLocalReturns.class);
+        suite.addTest(NonLocalReturns.innerSuite());
         suite.addTestSuite(Simple.class);
         suite.addTestSuite(Special.class);
         suite.addTestSuite(Trait.class);
