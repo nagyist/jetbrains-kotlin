@@ -26,5 +26,5 @@ fun box(): String {
     val test2 = test1(false)
     if (test2 != "nonLocal") return "test2: ${test2}"
 
-    return "OK1"
+    return "OK"
 }
