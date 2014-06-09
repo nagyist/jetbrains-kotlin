@@ -32,6 +32,7 @@ import org.jetbrains.jet.codegen.binding.CodegenBinding;
 import org.jetbrains.jet.codegen.binding.MutableClosure;
 import org.jetbrains.jet.codegen.context.*;
 import org.jetbrains.jet.codegen.inline.InlineCodegen;
+import org.jetbrains.jet.codegen.inline.InlineCodegenUtil;
 import org.jetbrains.jet.codegen.inline.NameGenerator;
 import org.jetbrains.jet.codegen.intrinsics.IntrinsicMethod;
 import org.jetbrains.jet.codegen.state.GenerationState;
@@ -1584,6 +1585,10 @@ public class ExpressionCodegen extends JetVisitor<StackValue, StackValue> implem
                 doFinallyOnReturn();
                 StackValue.local(returnValIndex, returnType).put(returnType, v);
                 myFrameMap.leaveTemp(returnType);
+            }
+
+            if (isNonLocalReturn) {
+                InlineCodegenUtil.generateGlobalReturnFlag(v);
             }
             v.areturn(returnType);
         }

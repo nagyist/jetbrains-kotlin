@@ -34,8 +34,8 @@ import org.jetbrains.org.objectweb.asm.tree.analysis.*;
 
 import java.util.*;
 
-import static org.jetbrains.jet.codegen.inline.InlineCodegenUtil.isInvokeOnLambda;
 import static org.jetbrains.jet.codegen.inline.InlineCodegenUtil.isAnonymousConstructorCall;
+import static org.jetbrains.jet.codegen.inline.InlineCodegenUtil.isInvokeOnLambda;
 
 public class MethodInliner {
 
@@ -100,24 +100,31 @@ public class MethodInliner {
 
         //substitute returns with "goto end" instruction to keep non local returns in lambdas
         final Label end = new Label();
-        if (remapReturn && !isInliningLambda) {
+        if (remapReturn) {
             MethodNode gotoInsteadReturns = new MethodNode(InlineCodegenUtil.API, transformedNode.access, transformedNode.name, transformedNode.desc,
                                              transformedNode.signature,
                                              transformedNode.exceptions.toArray(new String[transformedNode.exceptions.size()]));
             transformedNode.accept(new MethodVisitor(InlineCodegenUtil.API, gotoInsteadReturns) {
+
+                private boolean isGlobalReturn = false;
+
                 @Override
                 public void visitInsn(int opcode) {
-                    if (InlineCodegenUtil.isReturnOpcode(opcode)) {
+                    if (InlineCodegenUtil.isReturnOpcode(opcode) && !isGlobalReturn) {
                         super.visitJumpInsn(Opcodes.GOTO, end);
                     } else {
                         super.visitInsn(opcode);
                     }
+                    isGlobalReturn = false;
                 }
 
                 @Override
-                public void visitEnd() {
-                    super.visitLabel(end);
-                    super.visitEnd();
+                public void visitMethodInsn(int opcode, String owner, String name, String desc, boolean itf) {
+                    if (owner.equals(InlineCodegenUtil.GLOBAL_RETURN)) {
+                        isGlobalReturn = true;
+                    } else {
+                        super.visitMethodInsn(opcode, owner, name, desc, itf);
+                    }
                 }
             });
 
@@ -326,15 +333,6 @@ public class MethodInliner {
     protected MethodNode markPlacesForInlineAndRemoveInlinable(@NotNull MethodNode node, boolean isInliningLambda) {
         node = prepareNode(node);
 
-        //at this point we shpud generate additional return to lambda
-        LdcInsnNode ldcNode = new LdcInsnNode("");
-        InsnNode retNode = new InsnNode(Opcodes.ARETURN);
-        if (isInliningLambda) {
-            node.instructions.add(ldcNode);
-            node.instructions.add(retNode);
-        }
-
-
         Analyzer<SourceValue> analyzer = new Analyzer<SourceValue>(new SourceInterpreter());
         Frame<SourceValue>[] sources;
         try {
@@ -420,12 +418,6 @@ public class MethodInliner {
             if (deadLabels.contains(block.start) && deadLabels.contains(block.end)) {
                 iterator.remove();
             }
-        }
-
-        //NOTE: nodes can be deleted in clean dead code so we should check getNext() != null
-        if (isInliningLambda && ldcNode.getNext() != null) {
-            node.instructions.remove(ldcNode);
-            node.instructions.remove(retNode);
         }
 
         return node;
