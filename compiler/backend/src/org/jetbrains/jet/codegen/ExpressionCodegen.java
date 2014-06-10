@@ -3920,11 +3920,7 @@ The "returned" value of try expression with no finally is either the last expres
         PsiElement containingFunction = BindingContextUtils.callableDescriptorToDeclaration(bindingContext, containingFunctionDescriptor);
         assert containingFunction != null;
         if (containingFunction instanceof JetFunctionLiteral) {
-            do {
-                containingFunctionDescriptor = DescriptorUtils.getParentOfType(containingFunctionDescriptor, FunctionDescriptor.class);
-                containingFunction = containingFunctionDescriptor != null ? BindingContextUtils
-                        .callableDescriptorToDeclaration(bindingContext, containingFunctionDescriptor) : null;
-            } while (containingFunction instanceof JetFunctionLiteral);
+            return BindingContextUtils.getLambdaContainingFunction(containingFunctionDescriptor, bindingContext).getFirst();
         }
         return containingFunctionDescriptor;
     }
