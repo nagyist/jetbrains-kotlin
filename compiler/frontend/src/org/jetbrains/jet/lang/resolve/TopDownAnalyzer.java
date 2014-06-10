@@ -134,6 +134,7 @@ public class TopDownAnalyzer {
         c.debug("Enter");
 
         if (c.getTopDownAnalysisParameters().isLazyTopDownAnalysis()) {
+            //TODO: correctly setup module
             ResolveSession resolveSession = new InjectorForLazyResolve(
                     project,
                     new GlobalContextImpl((LockBasedStorageManager) c.getStorageManager(), c.getExceptionTracker()), // TODO

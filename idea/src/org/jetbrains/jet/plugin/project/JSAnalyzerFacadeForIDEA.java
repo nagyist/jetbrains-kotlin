@@ -17,9 +17,14 @@
 package org.jetbrains.jet.plugin.project;
 
 import com.intellij.openapi.project.Project;
+import com.intellij.psi.search.GlobalSearchScope;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.jet.analyzer.AnalyzerFacade;
+import org.jetbrains.jet.context.GlobalContext;
+import org.jetbrains.jet.lang.descriptors.ModuleDescriptorBase;
+import org.jetbrains.jet.lang.descriptors.ModuleFactory;
 import org.jetbrains.jet.lang.psi.JetFile;
+import org.jetbrains.jet.lang.resolve.name.Name;
 import org.jetbrains.k2js.analyze.AnalyzerFacadeForJS;
 
 import java.util.Collection;
@@ -33,7 +38,18 @@ public enum JSAnalyzerFacadeForIDEA implements AnalyzerFacade {
 
     @NotNull
     @Override
-    public Setup createSetup(@NotNull Project project, @NotNull Collection<JetFile> files) {
+    public Setup createSetup(
+            @NotNull GlobalContext globalContext, @NotNull Project project,
+            @NotNull ModuleDescriptorBase module,
+            @NotNull Collection<JetFile> files,
+            @NotNull GlobalSearchScope scope
+    ) {
         return new BasicSetup(AnalyzerFacadeForJS.getLazyResolveSession(files, new IDEAConfig(project)));
+    }
+
+    @NotNull
+    @Override
+    public <T extends ModuleDescriptorBase> T createModule(@NotNull Name moduleName, @NotNull ModuleFactory<T> factory) {
+        return AnalyzerFacadeForJS.createJsModule(moduleName, factory);
     }
 }

@@ -28,6 +28,7 @@ import com.intellij.psi.PsiFile;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.jet.analyzer.AnalyzerFacade;
+import org.jetbrains.jet.lang.descriptors.ModuleDescriptorImpl;
 import org.jetbrains.jet.lang.psi.JetFile;
 import org.jetbrains.jet.lang.resolve.java.PackageClassUtils;
 import org.jetbrains.jet.lang.resolve.lazy.ResolveSession;
@@ -83,11 +84,13 @@ public class JetRunConfigurationProducer extends RuntimeConfigurationProducer im
         if (psiFile instanceof JetFile) {
             JetFile jetFile = (JetFile) psiFile;
             AnalyzerFacade facade = AnalyzerFacadeProvider.getAnalyzerFacadeForFile(jetFile);
-            ResolveSession resolveSession = facade.createSetup(jetFile.getProject(), Collections.singleton(jetFile)).getLazyResolveSession();
-            MainFunctionDetector mainFunctionDetector = new MainFunctionDetector(resolveSession);
-            if (mainFunctionDetector.hasMain(jetFile.getDeclarations())) {
-                return jetFile;
-            }
+            //TODO:
+            throw new UnsupportedOperationException();
+            //ResolveSession resolveSession = facade.createSetup(jetFile.getProject(), new ModuleDescriptorImpl(""), Collections.singleton(jetFile), ).getLazyResolveSession();
+            //MainFunctionDetector mainFunctionDetector = new MainFunctionDetector(resolveSession);
+            //if (mainFunctionDetector.hasMain(jetFile.getDeclarations())) {
+            //    return jetFile;
+            //}
         }
 
         return null;

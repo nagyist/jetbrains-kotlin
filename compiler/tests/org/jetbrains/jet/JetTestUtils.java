@@ -810,6 +810,7 @@ public class JetTestUtils {
         return generatorClassFqName.substring(generatorClassFqName.lastIndexOf(".") + 1);
     }
 
+    @NotNull
     public static JetFile loadJetFile(@NotNull Project project, @NotNull File ioFile) throws IOException {
         String text = FileUtil.loadFile(ioFile, true);
         return JetPsiFactory.createPhysicalFile(project, ioFile.getName(), text);

@@ -18,6 +18,7 @@ package org.jetbrains.jet.di;
 
 import com.intellij.openapi.project.Project;
 import org.jetbrains.jet.context.GlobalContextImpl;
+import org.jetbrains.jet.lang.resolve.java.lazy.DefaultModuleClassResolver;
 import org.jetbrains.jet.storage.LockBasedStorageManager;
 import org.jetbrains.jet.lang.resolve.lazy.declarations.DeclarationProviderFactory;
 import org.jetbrains.jet.lang.resolve.BindingTrace;
@@ -25,6 +26,7 @@ import org.jetbrains.jet.lang.descriptors.ModuleDescriptorImpl;
 import org.jetbrains.jet.lang.PlatformToKotlinClassMap;
 import org.jetbrains.jet.lang.resolve.lazy.ResolveSession;
 import org.jetbrains.jet.lang.resolve.java.JavaDescriptorResolver;
+import com.intellij.psi.search.GlobalSearchScope;
 import org.jetbrains.jet.lang.resolve.kotlin.VirtualFileFinder;
 import org.jetbrains.jet.descriptors.serialization.descriptors.MemberFilter;
 import org.jetbrains.jet.lang.resolve.java.JavaClassFinderImpl;
@@ -77,6 +79,7 @@ public class InjectorForLazyResolveWithJava {
     private final PlatformToKotlinClassMap platformToKotlinClassMap;
     private final ResolveSession resolveSession;
     private final JavaDescriptorResolver javaDescriptorResolver;
+    private final GlobalSearchScope globalSearchScope;
     private final VirtualFileFinder virtualFileFinder;
     private final MemberFilter memberFilter;
     private final JavaClassFinderImpl javaClassFinder;
@@ -137,9 +140,10 @@ public class InjectorForLazyResolveWithJava {
         this.psiBasedMethodSignatureChecker = new PsiBasedMethodSignatureChecker();
         this.lazyResolveBasedCache = new LazyResolveBasedCache();
         this.javaPropertyInitializerEvaluator = new JavaPropertyInitializerEvaluatorImpl();
-        this.globalJavaResolverContext = new GlobalJavaResolverContext(lockBasedStorageManager, javaClassFinder, virtualFileFinder, deserializedDescriptorResolver, psiBasedExternalAnnotationResolver, traceBasedExternalSignatureResolver, traceBasedErrorReporter, psiBasedMethodSignatureChecker, lazyResolveBasedCache, javaPropertyInitializerEvaluator);
+        this.globalJavaResolverContext = new GlobalJavaResolverContext(lockBasedStorageManager, javaClassFinder, virtualFileFinder, deserializedDescriptorResolver, psiBasedExternalAnnotationResolver, traceBasedExternalSignatureResolver, traceBasedErrorReporter, psiBasedMethodSignatureChecker, lazyResolveBasedCache, javaPropertyInitializerEvaluator, new DefaultModuleClassResolver());
         this.lazyJavaPackageFragmentProvider = new LazyJavaPackageFragmentProvider(globalJavaResolverContext, getModule());
         this.javaDescriptorResolver = new JavaDescriptorResolver(lazyJavaPackageFragmentProvider, getModule());
+        this.globalSearchScope = com.intellij.psi.search.GlobalSearchScope.projectScope(project);
         this.memberFilter = org.jetbrains.jet.descriptors.serialization.descriptors.MemberFilter.ALWAYS_TRUE;
         this.annotationResolver = new AnnotationResolver();
         this.callResolver = new CallResolver();
@@ -176,6 +180,7 @@ public class InjectorForLazyResolveWithJava {
         this.resolveSession.setTypeResolver(typeResolver);
 
         javaClassFinder.setProject(project);
+        javaClassFinder.setScope(globalSearchScope);
 
         traceBasedExternalSignatureResolver.setExternalAnnotationResolver(psiBasedExternalAnnotationResolver);
         traceBasedExternalSignatureResolver.setProject(project);

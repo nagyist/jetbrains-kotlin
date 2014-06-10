@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2013 JetBrains s.r.o.
+ * Copyright 2010-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,42 +20,48 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.intellij.openapi.diagnostic.Logger;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 import org.jetbrains.jet.lang.PlatformToKotlinClassMap;
-import org.jetbrains.jet.lang.descriptors.annotations.Annotations;
 import org.jetbrains.jet.lang.descriptors.impl.CompositePackageFragmentProvider;
-import org.jetbrains.jet.lang.descriptors.impl.DeclarationDescriptorImpl;
-import org.jetbrains.jet.lang.descriptors.impl.PackageViewDescriptorImpl;
 import org.jetbrains.jet.lang.resolve.ImportPath;
-import org.jetbrains.jet.lang.resolve.name.FqName;
 import org.jetbrains.jet.lang.resolve.name.Name;
-import org.jetbrains.jet.lang.types.TypeSubstitutor;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-public class ModuleDescriptorImpl extends DeclarationDescriptorImpl implements ModuleDescriptor {
+public class ModuleDescriptorImpl extends ModuleDescriptorBase {
+    public static final ModuleFactory<ModuleDescriptorImpl> FACTORY = new ModuleFactory<ModuleDescriptorImpl>() {
+        @NotNull
+        @Override
+        public ModuleDescriptorImpl createModule(
+                @NotNull Name name,
+                @NotNull List<? extends ImportPath> defaultImports,
+                @NotNull PlatformToKotlinClassMap classMap
+        ) {
+            return new ModuleDescriptorImpl(name, (List<ImportPath>) defaultImports, classMap);
+        }
+    };
+
     private static final Logger LOG = Logger.getInstance(ModuleDescriptorImpl.class);
 
-
-    private final Map<DependencyKind, List<PackageFragmentProvider>> prioritizedFragmentProviders = Maps.newHashMap();
     private final List<PackageFragmentProvider> fragmentProviders = Lists.newArrayList();
     private final CompositePackageFragmentProvider packageFragmentProvider = new CompositePackageFragmentProvider(fragmentProviders);
-    private final List<ImportPath> defaultImports;
-    private final PlatformToKotlinClassMap platformToKotlinClassMap;
+    private final Map<DependencyKind, List<PackageFragmentProvider>> prioritizedFragmentProviders = Maps.newHashMap();
 
     public ModuleDescriptorImpl(
             @NotNull Name name,
             @NotNull List<ImportPath> defaultImports,
             @NotNull PlatformToKotlinClassMap platformToKotlinClassMap
     ) {
-        super(Annotations.EMPTY, name);
+        super(name, defaultImports, platformToKotlinClassMap);
         if (!name.isSpecial()) {
             throw new IllegalArgumentException("module name must be special: " + name);
         }
-        this.defaultImports = defaultImports;
-        this.platformToKotlinClassMap = platformToKotlinClassMap;
+    }
+
+    @Override
+    public void setPackageFragmentProviderForSources(@NotNull PackageFragmentProvider providerForSources) {
+        addFragmentProvider(DependencyKind.SOURCES, providerForSources);
     }
 
     public void addFragmentProvider(@NotNull DependencyKind dependencyKind, @NotNull PackageFragmentProvider provider) {
@@ -81,45 +87,9 @@ public class ModuleDescriptorImpl extends DeclarationDescriptorImpl implements M
         }
     }
 
-    @Override
-    @Nullable
-    public DeclarationDescriptor getContainingDeclaration() {
-        return null;
-    }
-
     @NotNull
     @Override
     public PackageFragmentProvider getPackageFragmentProvider() {
         return packageFragmentProvider;
-    }
-
-    @Nullable
-    @Override
-    public PackageViewDescriptor getPackage(@NotNull FqName fqName) {
-        List<PackageFragmentDescriptor> fragments = packageFragmentProvider.getPackageFragments(fqName);
-        return !fragments.isEmpty() ? new PackageViewDescriptorImpl(this, fqName, fragments) : null;
-    }
-
-    @NotNull
-    @Override
-    public List<ImportPath> getDefaultImports() {
-        return defaultImports;
-    }
-
-    @NotNull
-    @Override
-    public PlatformToKotlinClassMap getPlatformToKotlinClassMap() {
-        return platformToKotlinClassMap;
-    }
-
-    @NotNull
-    @Override
-    public ModuleDescriptor substitute(@NotNull TypeSubstitutor substitutor) {
-        return this;
-    }
-
-    @Override
-    public <R, D> R accept(DeclarationDescriptorVisitor<R, D> visitor, D data) {
-        return visitor.visitModuleDeclaration(this, data);
     }
 }

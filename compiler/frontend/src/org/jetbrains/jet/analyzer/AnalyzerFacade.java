@@ -17,9 +17,17 @@
 package org.jetbrains.jet.analyzer;
 
 import com.intellij.openapi.project.Project;
+import com.intellij.psi.search.GlobalSearchScope;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.jet.context.GlobalContext;
+import org.jetbrains.jet.context.GlobalContextImpl;
+import org.jetbrains.jet.lang.descriptors.ModuleDescriptor;
+import org.jetbrains.jet.lang.descriptors.ModuleDescriptorBase;
+import org.jetbrains.jet.lang.descriptors.ModuleFactory;
+import org.jetbrains.jet.lang.descriptors.PackageFragmentProvider;
 import org.jetbrains.jet.lang.psi.JetFile;
 import org.jetbrains.jet.lang.resolve.lazy.ResolveSession;
+import org.jetbrains.jet.lang.resolve.name.Name;
 
 import java.util.Collection;
 
@@ -45,9 +53,16 @@ public interface AnalyzerFacade {
         }
     }
 
+    //TODO: scope and files seem to provide similar information
     @NotNull
     Setup createSetup(
+            @NotNull GlobalContext globalContext,
             @NotNull Project project,
-            @NotNull Collection<JetFile> files
+            @NotNull ModuleDescriptorBase module,
+            @NotNull Collection<JetFile> files,
+            @NotNull GlobalSearchScope scope
     );
+
+    @NotNull
+    <T extends ModuleDescriptorBase> T createModule(@NotNull Name moduleName, @NotNull ModuleFactory<T> factory);
 }

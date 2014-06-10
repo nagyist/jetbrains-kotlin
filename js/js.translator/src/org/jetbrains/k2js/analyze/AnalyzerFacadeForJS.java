@@ -29,9 +29,7 @@ import org.jetbrains.jet.context.GlobalContextImpl;
 import org.jetbrains.jet.di.InjectorForLazyResolve;
 import org.jetbrains.jet.di.InjectorForTopDownAnalyzerForJs;
 import org.jetbrains.jet.lang.PlatformToKotlinClassMap;
-import org.jetbrains.jet.lang.descriptors.DependencyKind;
-import org.jetbrains.jet.lang.descriptors.ModuleDescriptor;
-import org.jetbrains.jet.lang.descriptors.ModuleDescriptorImpl;
+import org.jetbrains.jet.lang.descriptors.*;
 import org.jetbrains.jet.lang.psi.JetFile;
 import org.jetbrains.jet.lang.resolve.*;
 import org.jetbrains.jet.lang.resolve.lazy.ResolveSession;
@@ -81,7 +79,7 @@ public final class AnalyzerFacadeForJS {
     ) {
         Project project = config.getProject();
 
-        ModuleDescriptorImpl owner = createJsModule("<module>");
+        ModuleDescriptorImpl owner = createJsModule(Name.special("<module>"), ModuleDescriptorImpl.FACTORY);
 
         Predicate<PsiFile> completely = Predicates.and(notLibFiles(config.getLibFiles()), filesToAnalyzeCompletely);
 
@@ -136,20 +134,22 @@ public final class AnalyzerFacadeForJS {
         DeclarationProviderFactory declarationProviderFactory =
                 createDeclarationProviderFactory(config.getProject(), globalContext.getStorageManager(),
                                                  Config.withJsLibAdded(files, config));
-        ModuleDescriptorImpl module = createJsModule("<lazy module>");
+        ModuleDescriptorImpl module = createJsModule(Name.special("<lazy module>"), ModuleDescriptorImpl.FACTORY);
         module.addFragmentProvider(DependencyKind.BUILT_INS, KotlinBuiltIns.getInstance().getBuiltInsModule().getPackageFragmentProvider());
 
-        return new InjectorForLazyResolve(
+        ResolveSession session = new InjectorForLazyResolve(
                 config.getProject(),
                 globalContext,
                 module,
                 declarationProviderFactory,
                 new BindingTraceContext()).getResolveSession();
+        module.setPackageFragmentProviderForSources(session.getPackageFragmentProvider());
+        return session;
     }
 
     @NotNull
-    private static ModuleDescriptorImpl createJsModule(@NotNull String name) {
-        return new ModuleDescriptorImpl(Name.special(name), DEFAULT_IMPORTS, PlatformToKotlinClassMap.EMPTY);
+    public static <T extends ModuleDescriptorBase> T createJsModule(@NotNull Name moduleName, @NotNull ModuleFactory<T> factory) {
+        return factory.createModule(moduleName, DEFAULT_IMPORTS, PlatformToKotlinClassMap.EMPTY);
     }
 
 }
