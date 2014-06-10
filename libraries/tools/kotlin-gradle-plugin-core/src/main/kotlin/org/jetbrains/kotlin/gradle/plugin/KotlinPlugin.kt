@@ -29,8 +29,7 @@ import java.util.ArrayList
 import com.android.build.gradle.BasePlugin
 import com.android.build.gradle.api.LibraryVariant
 import com.android.build.gradle.api.ApkVariant
-import com.android.builder.model.BuildType
-import com.android.builder.BuilderConstants
+import com.android.builder.core.BuilderConstants
 import com.android.build.gradle.api.TestVariant
 import org.gradle.api.plugins.JavaPlugin
 import org.gradle.api.artifacts.dsl.DependencyHandler
@@ -41,6 +40,7 @@ import org.gradle.api.UnknownDomainObjectException
 import org.gradle.api.initialization.dsl.ScriptHandler
 import org.jetbrains.kotlin.gradle.plugin.android.AndroidGradleWrapper
 import javax.inject.Inject
+import com.android.builder.model.BuildType
 
 val DEFAULT_ANNOTATIONS = "org.jebrains.kotlin.gradle.defaultAnnotations"
 
@@ -133,7 +133,7 @@ open class KotlinAndroidPlugin [Inject] (val scriptHandler: ScriptHandler): Plug
         val project = p0 as ProjectInternal
         val ext = project.getExtensions().getByName("android") as BaseExtension
 
-        ext.getSourceSets().all(object : Action<AndroidSourceSet> {
+        ext.getSourceSets()!!.all(object : Action<AndroidSourceSet> {
             override fun execute(sourceSet: AndroidSourceSet?) {
                 if (sourceSet is HasConvention) {
                     val sourceSetName = sourceSet.getName()
@@ -142,9 +142,8 @@ open class KotlinAndroidPlugin [Inject] (val scriptHandler: ScriptHandler): Plug
                     val kotlinDirSet = kotlinSourceSet.getKotlin()
                     kotlinDirSet.srcDir(project.file("src/${sourceSetName}/kotlin"))
 
-                    sourceSet.getAllJava().source(kotlinDirSet)
-                    sourceSet.getAllSource().source(kotlinDirSet)
-                    sourceSet.getResources()?.getFilter()?.exclude(KSpec({ elem ->
+                    AndroidGradleWrapper.setJavaSrcDir(sourceSet, kotlinDirSet)
+                    AndroidGradleWrapper.getResourceFilter(sourceSet)?.exclude(KSpec({ elem ->
                         kotlinDirSet.contains(elem.getFile())
                     }))
                     project.getLogger().debug("Created kotlin sourceDirectorySet at ${kotlinDirSet.getSrcDirs()}")
@@ -177,7 +176,7 @@ open class KotlinAndroidPlugin [Inject] (val scriptHandler: ScriptHandler): Plug
     private fun processVariants(variants: DefaultDomainObjectSet<out BaseVariant>, project: Project, androidExt: BaseExtension): Unit {
         val logger = project.getLogger()
         val kotlinOptions = getExtention<K2JVMCompilerArguments>(androidExt, "kotlinOptions")
-        val sourceSets = androidExt.getSourceSets()
+        val sourceSets = androidExt.getSourceSets()!!
         val mainSourceSet = sourceSets.getByName(BuilderConstants.MAIN)
         val testSourceSet = try {
             sourceSets.getByName("instrumentTest")
@@ -187,11 +186,7 @@ open class KotlinAndroidPlugin [Inject] (val scriptHandler: ScriptHandler): Plug
 
         for (variant in variants) {
             if (variant is LibraryVariant || variant is ApkVariant) {
-                val buildType: BuildType = if (variant is LibraryVariant) {
-                    variant.getBuildType()
-                } else {
-                    (variant as ApkVariant).getBuildType()
-                }
+                val buildType: BuildType = variant.getBuildType()!!
 
                 val buildTypeSourceSetName = buildType.getName()
                 logger.debug("Variant build type is [$buildTypeSourceSetName]")
@@ -216,26 +211,26 @@ open class KotlinAndroidPlugin [Inject] (val scriptHandler: ScriptHandler): Plug
                 val javaSourceList = ArrayList<Any?>()
 
                 if (variant is TestVariant) {
-                    javaSourceList.addAll(testSourceSet.getJava().getSrcDirs())
+                    javaSourceList.addAll(testSourceSet.getJava()!!.getSrcDirs()!!)
                     val testKotlinSource = getExtention<KotlinSourceSet>(testSourceSet, "kotlin")
                     kotlinTask.source(testKotlinSource.getKotlin())
                 } else {
-                    javaSourceList.addAll(mainSourceSet.getJava().getSrcDirs())
+                    javaSourceList.addAll(mainSourceSet.getJava()!!.getSrcDirs()!!)
                     val mainKotlinSource = getExtention<KotlinSourceSet>(mainSourceSet, "kotlin")
                     kotlinTask.source(mainKotlinSource.getKotlin())
                 }
 
                 if (null != buildTypeSourceSet) {
-                    javaSourceList.add(buildTypeSourceSet.getJava().getSrcDirs())
+                    javaSourceList.add(buildTypeSourceSet.getJava()!!.getSrcDirs())
                     kotlinTask.source(getExtention<KotlinSourceSet>(buildTypeSourceSet, "kotlin").getKotlin())
                 }
-                javaSourceList.add(Callable<File?>{ variant.getProcessResources().getSourceOutputDir() })
+                javaSourceList.add(Callable<File?>{ variant.getProcessResources()?.getSourceOutputDir() })
                 javaSourceList.add(Callable<File?>{ variant.getGenerateBuildConfig()?.getSourceOutputDir() })
-                javaSourceList.add(Callable<File?>{ variant.getAidlCompile().getSourceOutputDir() })
-                javaSourceList.add(Callable<File?>{ variant.getRenderscriptCompile().getSourceOutputDir() })
+                javaSourceList.add(Callable<File?>{ variant.getAidlCompile()?.getSourceOutputDir() })
+                javaSourceList.add(Callable<File?>{ variant.getRenderscriptCompile()?.getSourceOutputDir() })
 
                 if (variant is ApkVariant) {
-                    for (flavour in variant.getProductFlavors().iterator()) {
+                    for (flavour in variant.getProductFlavors()?.iterator()) {
                        val flavourSourceSetName = buildTypeSourceSetName + flavour.getName()
                         val flavourSourceSet : AndroidSourceSet? = sourceSets.findByName(flavourSourceSetName)
                         if (flavourSourceSet != null) {
