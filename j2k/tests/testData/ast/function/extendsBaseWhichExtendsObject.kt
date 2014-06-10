@@ -1,19 +1,19 @@
 package test
 
-open class Test() : Base() {
+class Test() : Base() {
     override fun hashCode(): Int {
         return super.hashCode()
     }
 
-    override fun equals(o: Any?): Boolean {
+    override fun equals(o: Any): Boolean {
         return super.equals(o)
     }
 
-    override fun clone(): Any? {
+    override fun clone(): Any {
         return super.clone()
     }
 
-    override fun toString(): String? {
+    override fun toString(): String {
         return super.toString()
     }
 
@@ -22,24 +22,24 @@ open class Test() : Base() {
     }
 }
 
-open class Base() {
-    public open fun hashCode(): Int {
-        return System.identityHashCode(this)
+class Base() {
+    override fun hashCode(): Int {
+        return super.hashCode()
     }
 
-    public open fun equals(o: Any?): Boolean {
-        return this.identityEquals(o)
+    override fun equals(other: Any?): Boolean {
+        return super.equals(o)
     }
 
-    protected open fun clone(): Any? {
+    protected fun clone(): Any {
         return super.clone()
     }
 
-    public open fun toString(): String? {
-        return getJavaClass<Base>.getName() + '@' + Integer.toHexString(hashCode())
+    override fun toString(): String {
+        return super.toString()
     }
 
-    protected open fun finalize() {
+    protected fun finalize() {
         super.finalize()
     }
 }

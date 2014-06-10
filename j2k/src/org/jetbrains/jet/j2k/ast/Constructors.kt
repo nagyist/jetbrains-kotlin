@@ -26,7 +26,7 @@ abstract class Constructor(
         modifiers: Set<Modifier>,
         parameterList: ParameterList,
         block: Block
-) : Function(converter, Identifier.Empty, comments, modifiers, Type.Empty, TypeParameterList.Empty, parameterList, block)
+) : Function(converter, Identifier.Empty, comments, modifiers, Type.Empty, TypeParameterList.Empty, parameterList, block, false)
 
 class PrimaryConstructor(converter: Converter,
                          comments: MemberComments,
@@ -60,7 +60,7 @@ class SecondaryConstructor(converter: Converter,
         val typeParameters = ArrayList<TypeParameter>()
         typeParameters.addAll(containingClass.typeParameterList.parameters)
         return Function(converter, Identifier("init"), MemberComments.Empty, modifiers,
-                        ClassType(containingClass.name, typeParameters, false, converter),
-                        TypeParameterList(typeParameters), parameterList, block)
+                        ClassType(containingClass.name, typeParameters, Nullability.NotNull, converter.settings),
+                        TypeParameterList(typeParameters), parameterList, block, false)
     }
 }

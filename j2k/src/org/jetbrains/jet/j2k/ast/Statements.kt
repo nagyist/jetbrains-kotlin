@@ -26,79 +26,87 @@ abstract class Statement() : Element {
     }
 }
 
-open class DeclarationStatement(val elements: List<Element>) : Statement() {
+class DeclarationStatement(val elements: List<Element>) : Statement() {
     override fun toKotlin(): String
-            = elements.filterIsInstance(javaClass<LocalVariable>()).map { convertDeclaration(it) }.makeString("\n")
-
-    private fun convertDeclaration(v: LocalVariable): String
-            = (if (v.isImmutable) "val" else "var") + " " + v.toKotlin()
+            = elements.filterIsInstance(javaClass<LocalVariable>()).map { it.toKotlin() }.makeString("\n")
 }
 
-open class ExpressionListStatement(val expressions: List<Expression>) : Expression() {
+class ExpressionListStatement(val expressions: List<Expression>) : Expression() {
     override fun toKotlin() = expressions.toKotlin("\n")
 }
 
-open class LabelStatement(val name: Identifier, val statement: Element) : Statement() {
+class LabelStatement(val name: Identifier, val statement: Element) : Statement() {
     override fun toKotlin(): String = "@" + name.toKotlin() + " " + statement.toKotlin()
 }
 
-open class ReturnStatement(val expression: Expression) : Statement() {
+class ReturnStatement(val expression: Expression) : Statement() {
     override fun toKotlin() = "return " + expression.toKotlin()
 }
 
-open class IfStatement(
+class IfStatement(
         val condition: Expression,
         val thenStatement: Element,
-        val elseStatement: Element
+        val elseStatement: Element,
+        singleLine: Boolean
 ) : Expression() {
-    override fun toKotlin(): String {
-        val result: String = "if (" + condition.toKotlin() + ")\n" + thenStatement.toKotlin()
-        if (elseStatement != Statement.Empty) {
-            return result + "\nelse\n" + elseStatement.toKotlin()
-        }
+    private val br = if (singleLine) " " else "\n"
 
+    override fun toKotlin(): String {
+        val result = "if (" + condition.toKotlin() + ")$br" + thenStatement.toKotlin()
+        if (!elseStatement.isEmpty) {
+            return "$result${br}else$br${elseStatement.toKotlin()}"
+        }
         return result
     }
 }
 
 // Loops --------------------------------------------------------------------------------------------------
 
-open class WhileStatement(val condition: Expression, val body: Element) : Statement() {
-    override fun toKotlin() = "while (" + condition.toKotlin() + ")\n" + body.toKotlin()
+class WhileStatement(val condition: Expression, val body: Element, singleLine: Boolean) : Statement() {
+    private val br = if (singleLine) " " else "\n"
+
+    override fun toKotlin() = "while (" + condition.toKotlin() + ")$br" + body.toKotlin()
 }
 
-open class DoWhileStatement(condition: Expression, body: Element) : WhileStatement(condition, body) {
-    override fun toKotlin() = "do\n" + body.toKotlin() + "\nwhile (" + condition.toKotlin() + ")"
+class DoWhileStatement(val condition: Expression, val body: Element, singleLine: Boolean) : Statement() {
+    private val br = if (singleLine) " " else "\n"
+
+    override fun toKotlin() = "do$br" + body.toKotlin() + "${br}while (" + condition.toKotlin() + ")"
 }
 
-open class ForeachStatement(
+class ForeachStatement(
         val variable: Parameter,
         val expression: Expression,
-        val body: Element
+        val body: Element,
+        singleLine: Boolean
 ) : Statement() {
-    override fun toKotlin() = "for (" + variable.identifier.toKotlin() + " in " +
-    expression.toKotlin() + ")\n" + body.toKotlin()
+
+    private val br = if (singleLine) " " else "\n"
+
+    override fun toKotlin() = "for (" + variable.identifier.toKotlin() + " in " + expression.toKotlin() + ")$br" + body.toKotlin()
 }
 
-open class ForeachWithRangeStatement(val identifier: Identifier,
-                                     val start: Expression,
-                                     val end: Expression,
-                                     val body: Element) : Statement() {
-    override fun toKotlin() = "for (" + identifier.toKotlin() + " in " +
-    start.toKotlin() + ".." + end.toKotlin() + ") " + body.toKotlin()
+class ForeachWithRangeStatement(val identifier: Identifier,
+                                val start: Expression,
+                                val end: Expression,
+                                val body: Element,
+                                singleLine: Boolean) : Statement() {
+    private val br = if (singleLine) " " else "\n"
+
+    override fun toKotlin() = "for (" + identifier.toKotlin() + " in " + start.toKotlin() + ".." + end.toKotlin() + ")$br" + body.toKotlin()
 }
 
-open class BreakStatement(val label: Identifier = Identifier.Empty) : Statement() {
+class BreakStatement(val label: Identifier = Identifier.Empty) : Statement() {
     override fun toKotlin() = "break" + label.withPrefix("@")
 }
 
-open class ContinueStatement(val label: Identifier = Identifier.Empty) : Statement() {
+class ContinueStatement(val label: Identifier = Identifier.Empty) : Statement() {
     override fun toKotlin() = "continue" + label.withPrefix("@")
 }
 
 // Exceptions ----------------------------------------------------------------------------------------------
 
-open class TryStatement(val block: Block, val catches: List<CatchStatement>, val finallyBlock: Block) : Statement() {
+class TryStatement(val block: Block, val catches: List<CatchStatement>, val finallyBlock: Block) : Statement() {
     override fun toKotlin(): String {
         val builder = StringBuilder()
                 .append("try\n")
@@ -113,41 +121,42 @@ open class TryStatement(val block: Block, val catches: List<CatchStatement>, val
     }
 }
 
-open class ThrowStatement(val expression: Expression) : Expression() {
+class ThrowStatement(val expression: Expression) : Expression() {
     override fun toKotlin() = "throw " + expression.toKotlin()
 }
 
-open class CatchStatement(val variable: Parameter, val block: Block) : Statement() {
+class CatchStatement(val variable: Parameter, val block: Block) : Statement() {
     override fun toKotlin(): String = "catch (" + variable.toKotlin() + ") " + block.toKotlin()
 }
 
 // Switch --------------------------------------------------------------------------------------------------
 
-open class SwitchContainer(val expression: Expression, val caseContainers: List<CaseContainer>) : Statement() {
+class SwitchContainer(val expression: Expression, val caseContainers: List<CaseContainer>) : Statement() {
     override fun toKotlin() = "when (" + expression.toKotlin() + ") {\n" + caseContainers.toKotlin("\n") + "\n}"
 }
 
-open class CaseContainer(val caseStatement: List<Element>, statements: List<Statement>) : Statement() {
+class CaseContainer(val caseStatement: List<Element>, statements: List<Statement>) : Statement() {
     private val block = Block(statements.filterNot { it is BreakStatement || it is ContinueStatement }, true)
 
     override fun toKotlin() = caseStatement.toKotlin(", ") + " -> " + block.toKotlin()
 }
 
-open class SwitchLabelStatement(val expression: Expression) : Statement() {
+class SwitchLabelStatement(val expression: Expression) : Statement() {
     override fun toKotlin() = expression.toKotlin()
 }
 
-open class DefaultSwitchLabelStatement() : Statement() {
+class DefaultSwitchLabelStatement() : Statement() {
     override fun toKotlin() = "else"
 }
 
 // Other ------------------------------------------------------------------------------------------------------
 
-open class SynchronizedStatement(val expression: Expression, val block: Block) : Statement() {
+class SynchronizedStatement(val expression: Expression, val block: Block) : Statement() {
     override fun toKotlin() = "synchronized (" + expression.toKotlin() + ") " + block.toKotlin()
 }
 
-class StatementList(elements: List<Element>) : WhiteSpaceSeparatedElementList(elements, WhiteSpace.NewLine) {
+class StatementList(elements: List<Element>)
+  : WhiteSpaceSeparatedElementList(elements, WhiteSpace.NewLine) {
     val statements: List<Statement>
         get() = elements.filterIsInstance(javaClass<Statement>())
 }

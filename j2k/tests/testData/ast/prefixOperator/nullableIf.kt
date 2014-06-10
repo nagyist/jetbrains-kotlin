@@ -1,3 +1,3 @@
-var s: String? = null
+val s = null
 if (!s?.isEmpty()!!) {
 }

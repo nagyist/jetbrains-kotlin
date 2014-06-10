@@ -20,20 +20,17 @@ import com.intellij.psi.*
 import org.jetbrains.jet.j2k.*
 import org.jetbrains.jet.j2k.ast.*
 
-class ElementVisitor(public val converter: Converter) : JavaElementVisitor() {
+class ElementVisitor(private val converter: Converter, private val typeConverter: TypeConverter) : JavaElementVisitor() {
     public var result: Element = Element.Empty
         protected set
 
     override fun visitLocalVariable(variable: PsiLocalVariable) {
-        var kType = converter.convertVariableType(variable)
-        if (variable.hasModifierProperty(PsiModifier.FINAL) && variable.getInitializer().isDefinitelyNotNull()) {
-            kType = kType.toNotNullType()
-        }
         result = LocalVariable(Identifier(variable.getName()!!),
-                                 converter.convertModifierList(variable.getModifierList()),
-                                 kType,
+                                 converter.convertModifiers(variable),
+                                 { typeConverter.convertVariableType(variable) },
                                  converter.convertExpression(variable.getInitializer(), variable.getType()),
-                                 converter)
+                                 converter.settings.forceLocalVariableImmutability || variable.hasModifierProperty(PsiModifier.FINAL),
+                                 converter.settings)
     }
 
     override fun visitExpressionList(list: PsiExpressionList) {
@@ -41,7 +38,7 @@ class ElementVisitor(public val converter: Converter) : JavaElementVisitor() {
     }
 
     override fun visitReferenceElement(reference: PsiJavaCodeReferenceElement) {
-        val types = converter.convertTypes(reference.getTypeParameters())
+        val types = typeConverter.convertTypes(reference.getTypeParameters())
         if (!reference.isQualified()) {
             result = ReferenceElement(Identifier(reference.getReferenceName()!!), types)
         }
@@ -58,12 +55,12 @@ class ElementVisitor(public val converter: Converter) : JavaElementVisitor() {
     }
 
     override fun visitTypeElement(`type`: PsiTypeElement) {
-        result = TypeElement(converter.convertType(`type`.getType()))
+        result = TypeElement(typeConverter.convertType(`type`.getType()))
     }
 
     override fun visitTypeParameter(classParameter: PsiTypeParameter) {
         result = TypeParameter(Identifier(classParameter.getName()!!),
-                                 classParameter.getExtendsListTypes().map { converter.convertType(it) })
+                                 classParameter.getExtendsListTypes().map { typeConverter.convertType(it) })
     }
 
     override fun visitParameterList(list: PsiParameterList) {

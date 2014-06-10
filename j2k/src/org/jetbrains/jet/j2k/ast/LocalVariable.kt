@@ -16,25 +16,28 @@
 
 package org.jetbrains.jet.j2k.ast
 
-import org.jetbrains.jet.j2k.Converter
+import org.jetbrains.jet.j2k.ConverterSettings
 
 class LocalVariable(
-        val identifier: Identifier,
-        val modifiersSet: Set<Modifier>,
-        val javaType: Type,
-        val initializer: Expression,
-        val converter: Converter
-) : Expression() {
-
-    val isImmutable: Boolean
-        get() = converter.settings.forceLocalVariableImmutability || modifiersSet.contains(Modifier.FINAL)
+        private val identifier: Identifier,
+        private val modifiers: Set<Modifier>,
+        private val typeCalculator: () -> Type /* we use lazy type calculation for better performance */,
+        private val initializer: Expression,
+        private val isVal: Boolean,
+        private val settings: ConverterSettings
+) : Element {
 
     override fun toKotlin(): String {
-        if (initializer.isEmpty) {
-            return "${identifier.toKotlin()} : ${javaType.toKotlin()}"
+        val varVal = if (isVal) "val" else "var"
+        return if (initializer.isEmpty) {
+            "$varVal ${identifier.toKotlin()} : ${typeCalculator().toKotlin()}"
         }
-
-        val shouldSpecifyType = converter.settings.specifyLocalVariableTypeByDefault
-        return "${identifier.toKotlin()} ${if (shouldSpecifyType) ": ${javaType.toKotlin()} " else ""}= ${initializer.toKotlin()}"
+        else {
+            val shouldSpecifyType = settings.specifyLocalVariableTypeByDefault
+            if (shouldSpecifyType)
+                "$varVal ${identifier.toKotlin()} : ${typeCalculator().toKotlin()} = ${initializer.toKotlin()}"
+            else
+                "$varVal ${identifier.toKotlin()} = ${initializer.toKotlin()}"
+        }
     }
 }

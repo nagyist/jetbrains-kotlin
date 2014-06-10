@@ -25,35 +25,26 @@ open class Field(
         modifiers: Set<Modifier>,
         val `type`: Type,
         val initializer: Element,
-        val writingAccesses: Int
+        val isVal: Boolean,
+        private val hasWriteAccesses: Boolean
 ) : Member(comments, modifiers) {
 
-    fun modifiersToKotlin(): String {
+    override fun toKotlin(): String {
+        val declaration = commentsToKotlin() + modifiersToKotlin() + (if (isVal) "val " else "var ") + identifier.toKotlin() + " : " + `type`.toKotlin()
+        return if (initializer.isEmpty)
+            declaration + (if (isVal && !isStatic() && hasWriteAccesses) "" else " = " + getDefaultInitializer(this))
+        else
+            declaration + " = " + initializer.toKotlin()
+    }
+
+    private fun modifiersToKotlin(): String {
         val modifierList = ArrayList<Modifier>()
-        if (isAbstract()) {
+        if (modifiers.contains(Modifier.ABSTRACT)) {
             modifierList.add(Modifier.ABSTRACT)
         }
 
-        val modifier = modifiers.accessModifier()
-        if (modifier != null) {
-            modifierList.add(modifier)
-        }
+        modifiers.accessModifier()?.let { modifierList.add(it) }
 
-        return modifierList.toKotlin() + (if (isVal()) "val " else "var ")
-    }
-
-    fun isVal(): Boolean = modifiers.contains(Modifier.FINAL)
-
-    override fun toKotlin(): String {
-        val declaration: String = commentsToKotlin() +
-        modifiersToKotlin() + identifier.toKotlin() + " : " + `type`.toKotlin()
-        if (initializer.isEmpty) {
-            return declaration + ((if (isVal() && !isStatic() && writingAccesses != 0)
-                ""
-            else
-                " = " + getDefaultInitializer(this)))
-        }
-
-        return declaration + " = " + initializer.toKotlin()
+        return modifierList.toKotlin()
     }
 }
