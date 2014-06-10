@@ -68,7 +68,7 @@ class MapTest {
         }
 
         assertEquals(6, list.size())
-        assertEquals("beverage,beer,location,Mells,name,James", list.makeString(","))
+        assertEquals("beverage,beer,location,Mells,name,James", list.join(","))
     }
 
     test fun iterateWithProperties() {
@@ -85,7 +85,7 @@ class MapTest {
         }
 
         assertEquals(6, list.size())
-        assertEquals("beverage,beer,location,Mells,name,James", list.makeString(","))
+        assertEquals("beverage,beer,location,Mells,name,James", list.join(","))
     }
 
     test fun iterateWithExtraction() {
@@ -102,7 +102,13 @@ class MapTest {
         }
 
         assertEquals(6, list.size())
-        assertEquals("beverage,beer,location,Mells,name,James", list.makeString(","))
+        assertEquals("beverage,beer,location,Mells,name,James", list.join(","))
+    }
+
+    test fun contains() {
+        val map = hashMapOf("a" to 1, "b" to 2)
+        assert("a" in map)
+        assert("c" !in map)
     }
 
     test fun map() {
@@ -129,6 +135,13 @@ class MapTest {
 
     test fun createUsingPairs() {
         val map = hashMapOf(Pair("a", 1), Pair("b", 2))
+        assertEquals(2, map.size)
+        assertEquals(1, map.get("a"))
+        assertEquals(2, map.get("b"))
+    }
+
+    test fun createFromIterable() {
+        val map = listOf(Pair("a", 1), Pair("b", 2)).toMap()
         assertEquals(2, map.size)
         assertEquals(1, map.get("a"))
         assertEquals(2, map.get("b"))
@@ -197,7 +210,7 @@ class MapTest {
         }
 
         assertEquals(6, list.size())
-        assertEquals("beverage,beer,location,Mells,name,James", list.makeString(","))
+        assertEquals("beverage,beer,location,Mells,name,James", list.join(","))
         println("==== worked! $list")
     }
     */
