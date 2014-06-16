@@ -28,10 +28,7 @@ import org.jetbrains.jet.lang.descriptors.SimpleFunctionDescriptor;
 import org.jetbrains.jet.lang.descriptors.VariableDescriptor;
 import org.jetbrains.jet.lang.diagnostics.Errors;
 import org.jetbrains.jet.lang.psi.*;
-import org.jetbrains.jet.lang.resolve.BindingContext;
-import org.jetbrains.jet.lang.resolve.BindingContextUtils;
-import org.jetbrains.jet.lang.resolve.DescriptorResolver;
-import org.jetbrains.jet.lang.resolve.DescriptorUtils;
+import org.jetbrains.jet.lang.resolve.*;
 import org.jetbrains.jet.lang.resolve.calls.autocasts.DataFlowInfo;
 import org.jetbrains.jet.lang.resolve.calls.model.MutableDataFlowInfoForArguments;
 import org.jetbrains.jet.lang.resolve.calls.model.ResolvedCall;
@@ -465,9 +462,11 @@ public class ControlStructureTypingVisitor extends ExpressionTypingVisitor {
                     containingFunctionDescriptor = result.getFirst();
                     containingFunction = result.getSecond();
 
-                    // Unqualified, in a function literal
-                    context.trace.report(RETURN_NOT_ALLOWED.on(expression));
-                    resultType = ErrorUtils.createErrorType(RETURN_NOT_ALLOWED_MESSAGE);
+                    if (!InlineDescriptorUtils.checkNonLocalReturnUsage(containingFunctionDescriptor, expression, context.trace)) {
+                        // Unqualified, in a function literal
+                        context.trace.report(RETURN_NOT_ALLOWED.on(expression));
+                        resultType = ErrorUtils.createErrorType(RETURN_NOT_ALLOWED_MESSAGE);
+                    }
                 }
                 if (containingFunctionDescriptor != null) {
                     expectedType = getFunctionExpectedReturnType(containingFunctionDescriptor, (JetElement) containingFunction);
@@ -483,12 +482,17 @@ public class ControlStructureTypingVisitor extends ExpressionTypingVisitor {
             SimpleFunctionDescriptor functionDescriptor = context.trace.get(FUNCTION, labelTargetElement);
             if (functionDescriptor != null) {
                 expectedType = getFunctionExpectedReturnType(functionDescriptor, labelTargetElement);
+                boolean errorReported = false;
                 if (functionDescriptor != containingFunctionDescriptor) {
-                    // Qualified, non-local
-                    context.trace.report(RETURN_NOT_ALLOWED.on(expression));
-                    resultType = ErrorUtils.createErrorType(RETURN_NOT_ALLOWED_MESSAGE);
+                    if (!InlineDescriptorUtils.checkNonLocalReturnUsage(functionDescriptor, expression, context.trace)) {
+                        // Qualified, non-local
+                        context.trace.report(RETURN_NOT_ALLOWED.on(expression));
+                        resultType = ErrorUtils.createErrorType(RETURN_NOT_ALLOWED_MESSAGE);
+                        errorReported = true;
+                    }
                 }
-                else if (expectedType == NO_EXPECTED_TYPE) {
+
+                if (!errorReported && expectedType == NO_EXPECTED_TYPE) {
                     // expectedType is NO_EXPECTED_TYPE iff the return type of the corresponding function descriptor is not computed yet
                     // our temporary policy is to prohibit returns in this case. It mostly applies to local returns in lambdas
                     context.trace.report(RETURN_NOT_ALLOWED_EXPLICIT_RETURN_TYPE_REQUIRED.on(expression));
