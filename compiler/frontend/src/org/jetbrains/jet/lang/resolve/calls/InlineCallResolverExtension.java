@@ -17,18 +17,18 @@
 package org.jetbrains.jet.lang.resolve.calls;
 
 import com.intellij.psi.PsiElement;
+import com.intellij.psi.util.PsiTreeUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.jet.lang.descriptors.*;
 import org.jetbrains.jet.lang.diagnostics.Errors;
 import org.jetbrains.jet.lang.psi.*;
 import org.jetbrains.jet.lang.resolve.BindingContext;
+import org.jetbrains.jet.lang.resolve.BindingContextUtils;
 import org.jetbrains.jet.lang.resolve.DescriptorUtils;
+import org.jetbrains.jet.lang.resolve.InlineDescriptorUtils;
 import org.jetbrains.jet.lang.resolve.calls.context.BasicCallResolutionContext;
-import org.jetbrains.jet.lang.resolve.calls.model.DefaultValueArgument;
-import org.jetbrains.jet.lang.resolve.calls.model.ResolvedCall;
-import org.jetbrains.jet.lang.resolve.calls.model.ResolvedValueArgument;
-import org.jetbrains.jet.lang.resolve.calls.model.VarargValueArgument;
+import org.jetbrains.jet.lang.resolve.calls.model.*;
 import org.jetbrains.jet.lang.resolve.scopes.receivers.ExpressionReceiver;
 import org.jetbrains.jet.lang.resolve.scopes.receivers.ExtensionReceiver;
 import org.jetbrains.jet.lang.resolve.scopes.receivers.ReceiverValue;
@@ -39,7 +39,11 @@ import org.jetbrains.jet.lexer.JetToken;
 import org.jetbrains.jet.lexer.JetTokens;
 
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
+
+import static org.jetbrains.jet.lang.resolve.BindingContext.DECLARATION_TO_DESCRIPTOR;
+import static org.jetbrains.jet.lang.resolve.BindingContext.RESOLVED_CALL;
 
 public class InlineCallResolverExtension implements CallResolverExtension {
 
@@ -87,10 +91,12 @@ public class InlineCallResolverExtension implements CallResolverExtension {
             }
         }
 
-        for (ResolvedValueArgument value : resolvedCall.getValueArguments().values()) {
+        for (Map.Entry<ValueParameterDescriptor, ResolvedValueArgument> entry : resolvedCall.getValueArguments().entrySet()) {
+            ResolvedValueArgument value = entry.getValue();
+            ValueParameterDescriptor valueDescriptor = entry.getKey();
             if (!(value instanceof DefaultValueArgument)) {
                 for (ValueArgument argument : value.getArguments()) {
-                    checkValueParameter(context, targetDescriptor, argument, value instanceof VarargValueArgument);
+                    checkValueParameter(context, targetDescriptor, argument, valueDescriptor);
                 }
             }
         }
@@ -100,51 +106,45 @@ public class InlineCallResolverExtension implements CallResolverExtension {
     }
 
     private static boolean couldAccessVariable(JetExpression expression) {
-        PsiElement parent = expression.getParent();
-        while (parent != null) {
-            if (parent instanceof JetValueArgument ||
-                parent instanceof JetBinaryExpression ||
-                parent instanceof JetUnaryExpression ||
-                parent instanceof JetLabeledExpression ||
-                parent instanceof JetDotQualifiedExpression ||
-                parent instanceof JetCallExpression ||
-                parent instanceof JetArrayAccessExpression ||
-                parent instanceof JetMultiDeclaration) {
-
-                if (parent instanceof JetLabeledExpression) {
-                    parent = parent.getParent();
-                    continue;
-                }
-                else if (parent instanceof JetBinaryExpression) {
-                    JetToken token = JetPsiUtil.getOperationToken((JetOperationExpression) parent);
-                    if (token == JetTokens.EQ || token == JetTokens.ANDAND || token == JetTokens.OROR) {
-                        //assignment
-                        return false;
-                    }
-                }
-
-                //check that it's in inlineable call would be in resolve call of parent
-                return true;
-            }
-            else if (parent instanceof JetParenthesizedExpression || parent instanceof JetBinaryExpressionWithTypeRHS) {
-                parent = parent.getParent();
-            }
-            else {
+        JetElement parent = JetPsiUtil.getCallableParentIfPresent(expression);
+        if (parent instanceof JetBinaryExpression) {
+            JetToken token = JetPsiUtil.getOperationToken((JetOperationExpression) parent);
+            if (token == JetTokens.EQ || token == JetTokens.ANDAND || token == JetTokens.OROR) {
+                //assignment
                 return false;
             }
         }
-        return false;
+
+        return parent != null;
     }
 
-    private void checkValueParameter(BasicCallResolutionContext context, CallableDescriptor targetDescriptor, ValueArgument argument, boolean isVararg) {
-        JetExpression jetExpression = argument.getArgumentExpression();
+
+
+    private void checkValueParameter(
+            @NotNull BasicCallResolutionContext context,
+            @NotNull CallableDescriptor targetDescriptor,
+            @NotNull ValueArgument targetArgument,
+            @NotNull ValueParameterDescriptor targetParameterDescriptor
+    ) {
+        JetExpression jetExpression = targetArgument.getArgumentExpression();
         if (jetExpression == null) {
             return;
         }
-        CallableDescriptor varDescriptor = getDescriptor(context, jetExpression);
+        CallableDescriptor varDescriptor = getCalleeDescriptor(context, jetExpression, false);
 
         if (varDescriptor != null && inlinableParameters.contains(varDescriptor)) {
-            checkFunctionCall(context, targetDescriptor, jetExpression, isVararg);
+            boolean isTargetInlineFunction = targetDescriptor instanceof SimpleFunctionDescriptor &&
+                                             ((SimpleFunctionDescriptor) targetDescriptor).getInlineStrategy().isInline();
+
+            if (!isTargetInlineFunction || !isInlinableParameter(targetParameterDescriptor)) {
+                context.trace.report(Errors.USAGE_IS_NOT_INLINABLE.on(jetExpression, jetExpression, descriptor));
+            } else {
+                if (!hasOnlyReturnAnnotation(varDescriptor) && hasOnlyReturnAnnotation(targetParameterDescriptor)) {
+                    context.trace.report(Errors.ONLY_LOCAL_RETURN.on(jetExpression, varDescriptor, descriptor));
+                } else {
+                    checkNonLocalReturn(varDescriptor, jetExpression, context);
+                }
+            }
         }
     }
 
@@ -160,7 +160,7 @@ public class InlineCallResolverExtension implements CallResolverExtension {
         JetExpression receiverExpression = null;
         if (receiver instanceof ExpressionReceiver) {
             receiverExpression = ((ExpressionReceiver) receiver).getExpression();
-            varDescriptor = getDescriptor(context, receiverExpression);
+            varDescriptor = getCalleeDescriptor(context, receiverExpression, true);
         }
         else if (receiver instanceof ExtensionReceiver) {
             ExtensionReceiver extensionReceiver = (ExtensionReceiver) receiver;
@@ -174,28 +174,34 @@ public class InlineCallResolverExtension implements CallResolverExtension {
 
         if (inlinableParameters.contains(varDescriptor)) {
             //check that it's invoke or inlinable extension
-            checkFunctionCall(context, targetDescriptor, receiverExpression, false);
+            checkLambdaInvokeOrExtensionCall(context, varDescriptor, targetDescriptor, receiverExpression);
         }
     }
 
     @Nullable
-    private static CallableDescriptor getDescriptor(
+    private static CallableDescriptor getCalleeDescriptor(
             @NotNull BasicCallResolutionContext context,
-            @NotNull JetExpression expression
+            @NotNull JetExpression expression,
+            boolean unwrapVariableAsFunction
     ) {
         ResolvedCall<?> thisCall = context.trace.get(BindingContext.RESOLVED_CALL, expression);
+        if (unwrapVariableAsFunction && thisCall instanceof VariableAsFunctionResolvedCall) {
+            return ((VariableAsFunctionResolvedCall) thisCall).getVariableCall().getResultingDescriptor();
+        }
         return thisCall != null ? thisCall.getResultingDescriptor() : null;
     }
 
-    private void checkFunctionCall(
-            BasicCallResolutionContext context,
-            CallableDescriptor targetDescriptor,
-            JetExpression receiverExpresssion,
-            boolean isVararg
+    private void checkLambdaInvokeOrExtensionCall(
+            @NotNull BasicCallResolutionContext context,
+            @NotNull CallableDescriptor lambdaDescriptor,
+            @NotNull CallableDescriptor callDescriptor,
+            @NotNull JetExpression receiverExpresssion
     ) {
-        boolean inlinableCall = isInvokeOrInlineExtension(targetDescriptor);
-        if (!inlinableCall || isVararg) {
+        boolean inlinableCall = isInvokeOrInlineExtension(callDescriptor);
+        if (!inlinableCall) {
             context.trace.report(Errors.USAGE_IS_NOT_INLINABLE.on(receiverExpresssion, receiverExpresssion, descriptor));
+        } else {
+            checkNonLocalReturn(lambdaDescriptor, receiverExpresssion, context);
         }
     }
 
@@ -247,5 +253,35 @@ public class InlineCallResolverExtension implements CallResolverExtension {
             parent = DescriptorUtils.getParentOfType(parent, DeclarationDescriptorWithVisibility.class);
         }
         return true;
+    }
+
+    private void checkNonLocalReturn(
+            @NotNull CallableDescriptor lambdaDescriptor,
+            @NotNull JetExpression expression,
+            @NotNull BasicCallResolutionContext context
+    ) {
+        if (hasOnlyReturnAnnotation(lambdaDescriptor)) return;
+
+        if (!InlineDescriptorUtils.checkNonLocalReturnUsage(descriptor, expression, context.trace)) {
+            context.trace.report(Errors.ONLY_LOCAL_RETURN.on(expression, lambdaDescriptor, descriptor));
+        }
+    }
+
+    @Nullable
+    public static PsiElement getDeclaration(JetExpression expression) {
+        do {
+            expression = PsiTreeUtil.getParentOfType(expression, JetDeclaration.class);
+        } while (expression instanceof JetMultiDeclaration || expression instanceof JetProperty);
+        return expression;
+    }
+
+    private static boolean hasOnlyReturnAnnotation(CallableDescriptor lambdaDescriptor) {
+        if (lambdaDescriptor instanceof ValueParameterDescriptor) {
+            if (InlineUtil.hasOnlyLocalReturn((ValueParameterDescriptor) lambdaDescriptor)) {
+                //annotated
+                return true;
+            }
+        }
+        return false;
     }
 }
