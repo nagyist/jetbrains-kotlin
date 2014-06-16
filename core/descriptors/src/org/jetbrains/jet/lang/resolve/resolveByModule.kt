@@ -14,13 +14,14 @@
  * limitations under the License.
  */
 
-package org.jetbrains.jet.plugin.libraries
+package org.jetbrains.jet.lang.resolve
 
-import org.jetbrains.jet.lang.descriptors.DeclarationDescriptor
+import org.jetbrains.jet.lang.descriptors.ModuleDescriptor
 import org.jetbrains.jet.lang.resolve.name.FqName
 import org.jetbrains.jet.lang.descriptors.ClassDescriptor
 
-trait ResolverForDecompiler {
-    fun resolveTopLevelClass(classFqName: FqName): ClassDescriptor?
-    fun resolveDeclarationsInPackage(packageFqName: FqName): Collection<DeclarationDescriptor>
+public fun ModuleDescriptor.resolveTopLevelClass(topLevelClassFqName: FqName): ClassDescriptor? {
+    assert(!topLevelClassFqName.isRoot())
+    return getPackage(topLevelClassFqName.parent())?.getMemberScope()
+            ?.getClassifier(topLevelClassFqName.shortName()) as? ClassDescriptor
 }
