@@ -1,3 +1,4 @@
+// !DIAGNOSTICS: -ONLY_LOCAL_RETURN
 // FILE: Run.java
 public interface Run {
     public int run();
