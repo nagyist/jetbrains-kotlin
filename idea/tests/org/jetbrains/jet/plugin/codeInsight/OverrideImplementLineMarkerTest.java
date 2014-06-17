@@ -78,6 +78,14 @@ public class OverrideImplementLineMarkerTest extends JetLightCodeInsightFixtureT
         doTest();
     }
 
+    public void testOverrideIconForOverloadMethodBug() {
+        doTest();
+    }
+
+    public void testOverloads() {
+        doTest();
+    }
+
     private void doTest() {
         try {
             myFixture.configureByFile(fileName());
