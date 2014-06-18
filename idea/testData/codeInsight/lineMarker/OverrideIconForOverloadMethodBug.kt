@@ -4,8 +4,7 @@ trait <lineMarker descr="*"></lineMarker>SkipSupport {
 }
 
 public trait <lineMarker descr="*"></lineMarker>SkipSupportWithDefaults : SkipSupport {
-    ////here goes incorrect icon that method is overridden
-    override fun <lineMarker descr="*"></lineMarker>skip() {
+    override fun <lineMarker descr="<b>internal</b> <b>open</b> <b>fun</b> skip(): kotlin.Unit <i>defined in</i> SkipSupportWithDefaults<br/>implements<br/><b>internal</b> <b>abstract</b> <b>fun</b> skip(): kotlin.Unit <i>defined in</i> SkipSupport"></lineMarker>skip() {
         skip("not given")
     }
 }
