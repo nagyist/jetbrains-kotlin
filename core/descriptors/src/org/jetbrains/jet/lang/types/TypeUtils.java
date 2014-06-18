@@ -266,7 +266,11 @@ public class TypeUtils {
         private static void processAllTypeParameters(JetType type, Variance howThiTypeIsUsed, Processor<TypeParameterUsage> result) {
             ClassifierDescriptor descriptor = type.getConstructor().getDeclarationDescriptor();
             if (descriptor instanceof TypeParameterDescriptor) {
-                result.process(new TypeParameterUsage((TypeParameterDescriptor)descriptor, howThiTypeIsUsed));
+                TypeParameterDescriptor typeParameterDescriptor = (TypeParameterDescriptor) descriptor;
+                result.process(new TypeParameterUsage(typeParameterDescriptor, howThiTypeIsUsed));
+                for (JetType bound : typeParameterDescriptor.getUpperBounds()) {
+                    processAllTypeParameters(bound, Variance.INVARIANT, result);
+                }
             }
             for (TypeProjection projection : type.getArguments()) {
                 processAllTypeParameters(projection.getType(), projection.getProjectionKind(), result);

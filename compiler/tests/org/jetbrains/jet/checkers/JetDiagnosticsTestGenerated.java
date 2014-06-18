@@ -6947,6 +6947,11 @@ public class JetDiagnosticsTestGenerated extends AbstractJetDiagnosticsTest {
                 doTest("compiler/testData/diagnostics/tests/subtyping/kt3159.kt");
             }
             
+            @TestMetadata("kt5246.kt")
+            public void testKt5246() throws Exception {
+                doTest("compiler/testData/diagnostics/tests/subtyping/kt5246.kt");
+            }
+            
             @TestMetadata("kt-1457.kt")
             public void testKt_1457() throws Exception {
                 doTest("compiler/testData/diagnostics/tests/subtyping/kt-1457.kt");
