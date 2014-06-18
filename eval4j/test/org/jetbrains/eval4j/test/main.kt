@@ -33,7 +33,7 @@ import org.jetbrains.org.objectweb.asm.tree.analysis.Frame
 
 fun suite(): TestSuite = buildTestSuite {
     methodNode, ownerClass, expected ->
-    object : TestCase("test" + methodNode.name.capitalize()) {
+    object : TestCase(getTestName(methodNode.name)) {
 
             override fun runTest() {
                 val value = interpreterLoop(
@@ -62,7 +62,9 @@ fun initFrame(
     var local = 0
     if ((m.access and ACC_STATIC) == 0) {
         val ctype = Type.getObjectType(owner)
-        current.setLocal(local++, makeNotInitializedValue(ctype))
+        val newInstance = REFLECTION_EVAL.newInstance(ctype)
+        val thisValue = REFLECTION_EVAL.invokeMethod(newInstance, MethodDescription(owner, "<init>", "()V", false), listOf(), true)
+        current.setLocal(local++, thisValue)
     }
 
     val args = Type.getArgumentTypes(m.desc)
@@ -251,29 +253,36 @@ object REFLECTION_EVAL : Eval {
     }
 
     override fun invokeMethod(instance: Value, methodDesc: MethodDescription, arguments: List<Value>, invokespecial: Boolean): Value {
-        if (invokespecial) {
-            if (methodDesc.name == "<init>") {
-                // Constructor call
-                [suppress("UNCHECKED_CAST")]
-                val _class = findClass((instance as NewObjectValue).asmType)
-                val ctor = _class.findConstructor(methodDesc)
-                assertNotNull("Constructor not found: $methodDesc", ctor)
-                val args = mapArguments(arguments, methodDesc.parameterTypes).copyToArray()
-                val result = mayThrow {ctor!!.newInstance(*args)}
-                instance.value = result
-                return objectToValue(result, instance.asmType)
-            }
-            else {
-                // TODO
-                throw UnsupportedOperationException("invokespecial is not suported yet")
-            }
+        if (invokespecial && methodDesc.name == "<init>") {
+            // Constructor call
+            [suppress("UNCHECKED_CAST")]
+            val _class = findClass((instance as NewObjectValue).asmType)
+            val ctor = _class.findConstructor(methodDesc)
+            assertNotNull("Constructor not found: $methodDesc", ctor)
+            val args = mapArguments(arguments, methodDesc.parameterTypes).copyToArray()
+            val result = mayThrow {ctor!!.newInstance(*args)}
+            instance.value = result
+            return objectToValue(result, instance.asmType)
         }
+
+        fun doInvokeMethod(obj: Any, method: Method): Value {
+            val args = mapArguments(arguments, methodDesc.parameterTypes).copyToArray()
+            val result = mayThrow {method.invoke(obj, *args)}
+            return objectToValue(result, methodDesc.returnType)
+        }
+
         val obj = instance.obj().checkNull()
-        val method = obj.javaClass.findMethod(methodDesc)
+        val method = if (invokespecial) {
+            findClass(methodDesc.ownerType).findMethod(methodDesc)
+        }
+        else {
+            obj.javaClass.findMethod(methodDesc)
+        }
         assertNotNull("Method not found: $methodDesc", method)
-        val args = mapArguments(arguments, methodDesc.parameterTypes).copyToArray()
-        val result = mayThrow {method!!.invoke(obj, *args)}
-        return objectToValue(result, methodDesc.returnType)
+        if (invokespecial) {
+            method!!.setAccessible(true)
+        }
+        return doInvokeMethod(obj, method!!)
     }
 
     private fun mapArguments(arguments: List<Value>, expecetedTypes: List<Type>): List<Any?> {
