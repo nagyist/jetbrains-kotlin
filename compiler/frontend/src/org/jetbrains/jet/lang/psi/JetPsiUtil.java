@@ -895,7 +895,7 @@ public class JetPsiUtil {
                 parent instanceof JetDotQualifiedExpression ||
                 parent instanceof JetCallExpression ||
                 parent instanceof JetArrayAccessExpression ||
-                parent instanceof JetMultiDeclaration) { //TODO remove multideclaration
+                parent instanceof JetMultiDeclaration) {
 
                 if (parent instanceof JetLabeledExpression) {
                     parent = parent.getParent();
