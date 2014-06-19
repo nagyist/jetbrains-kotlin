@@ -17,6 +17,7 @@
 package org.jetbrains.jet.utils.addToStdlib
 
 import java.util.HashMap
+import java.util.Collections
 
 fun <K, V> Map<K, V>.filterKeys(predicate: (K)->Boolean): Map<K, V> {
     val result = HashMap<K, V>()
@@ -27,3 +28,7 @@ fun <K, V> Map<K, V>.filterKeys(predicate: (K)->Boolean): Map<K, V> {
     }
     return result
 }
+
+fun <T: Any> T?.singletonOrEmptyList(): List<T> = if (this != null) Collections.singletonList(this) else Collections.emptyList()
+
+fun <T: Any> T?.singletonOrEmptySet(): Set<T> = if (this != null) Collections.singleton(this) else Collections.emptySet()

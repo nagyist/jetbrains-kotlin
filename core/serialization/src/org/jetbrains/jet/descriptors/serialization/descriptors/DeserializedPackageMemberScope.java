@@ -31,9 +31,7 @@ import org.jetbrains.jet.lang.resolve.name.FqName;
 import org.jetbrains.jet.lang.resolve.name.FqNameUnsafe;
 import org.jetbrains.jet.lang.resolve.name.Name;
 
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
 
 public class DeserializedPackageMemberScope extends DeserializedMemberScope {
 
@@ -45,7 +43,7 @@ public class DeserializedPackageMemberScope extends DeserializedMemberScope {
             @NotNull ProtoBuf.Package proto,
             @NotNull DeserializationContext context
     ) {
-        super(context.withTypes(packageDescriptor), getFilteredMembers(packageDescriptor, proto, context));
+        super(context.withTypes(packageDescriptor), proto.getMemberList());
         this.context = context;
         this.packageFqName = packageDescriptor.getFqName();
     }
@@ -57,7 +55,6 @@ public class DeserializedPackageMemberScope extends DeserializedMemberScope {
     ) {
         this(packageDescriptor, packageData.getPackageProto(), context.withNameResolver(packageData.getNameResolver()));
     }
-
     @Nullable
     @Override
     protected ClassDescriptor getClassDescriptor(@NotNull Name name) {
@@ -84,20 +81,5 @@ public class DeserializedPackageMemberScope extends DeserializedMemberScope {
     @Override
     protected ReceiverParameterDescriptor getImplicitReceiver() {
         return null;
-    }
-
-    @NotNull
-    private static Collection<ProtoBuf.Callable> getFilteredMembers(
-            @NotNull PackageFragmentDescriptor packageDescriptor,
-            @NotNull ProtoBuf.Package packageProto,
-            @NotNull DeserializationContext context
-    ) {
-        List<ProtoBuf.Callable> result = new ArrayList<ProtoBuf.Callable>();
-        for (ProtoBuf.Callable member : packageProto.getMemberList()) {
-            if (context.getMemberFilter().acceptPackagePartClass(packageDescriptor, member, context.getNameResolver())) {
-                result.add(member);
-            }
-        }
-        return result;
     }
 }

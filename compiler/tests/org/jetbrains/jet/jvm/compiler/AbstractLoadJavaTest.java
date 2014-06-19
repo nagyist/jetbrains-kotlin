@@ -33,7 +33,6 @@ import org.jetbrains.jet.cli.jvm.compiler.JetCoreEnvironment;
 import org.jetbrains.jet.config.CommonConfigurationKeys;
 import org.jetbrains.jet.config.CompilerConfiguration;
 import org.jetbrains.jet.descriptors.serialization.descriptors.DeserializedClassDescriptor;
-import org.jetbrains.jet.descriptors.serialization.descriptors.MemberFilter;
 import org.jetbrains.jet.di.InjectorForTopDownAnalyzerForJvm;
 import org.jetbrains.jet.lang.descriptors.*;
 import org.jetbrains.jet.lang.psi.JetFile;
@@ -168,8 +167,7 @@ public abstract class AbstractLoadJavaTest extends TestCaseWithTmpdir {
                 environment.getProject(),
                 parameters,
                 trace,
-                module,
-                MemberFilter.ALWAYS_TRUE);
+                module);
 
         module.addFragmentProvider(DependencyKind.BINARIES, injectorForAnalyzer.getJavaDescriptorResolver().getPackageFragmentProvider());
 

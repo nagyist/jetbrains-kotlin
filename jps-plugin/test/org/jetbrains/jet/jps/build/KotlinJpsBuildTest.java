@@ -22,7 +22,9 @@ import com.intellij.testFramework.LightVirtualFile;
 import com.intellij.util.Function;
 import com.intellij.util.containers.ContainerUtil;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.jet.codegen.AsmUtil;
 import org.jetbrains.jet.codegen.PackageCodegen;
+import org.jetbrains.jet.lang.resolve.kotlin.PackagePartClassUtils;
 import org.jetbrains.jet.lang.resolve.name.FqName;
 import org.jetbrains.jps.builders.BuildResult;
 import org.jetbrains.jps.model.java.JpsJavaDependencyScope;
@@ -152,7 +154,7 @@ public class KotlinJpsBuildTest extends AbstractKotlinJpsBuildTestCase {
 
         checkPackageDeletedFromOutputWhen(Operation.CHANGE, "kotlinProject", "src/main.kt", "foo.FooPackage");
         checkPackageDeletedFromOutputWhen(Operation.CHANGE, "kotlinProject", "src/boo.kt", "boo.BooPackage");
-        checkClassesDeletedFromOutputWhen(Operation.CHANGE, "kotlinProject", "src/Bar.kt", "foo.Bar", "foo.FooPackage");
+        checkClassesDeletedFromOutputWhen(Operation.CHANGE, "kotlinProject", "src/Bar.kt", "foo.Bar");
 
         checkPackageDeletedFromOutputWhen(Operation.DELETE, "kotlinProject", "src/main.kt", "foo.FooPackage");
         assertFilesNotExistInOutput(module, "foo/FooPackage.class");
@@ -368,7 +370,9 @@ public class KotlinJpsBuildTest extends AbstractKotlinJpsBuildTestCase {
                 return super.getPath().substring(1);
             }
         };
-        return PackageCodegen.getPackagePartType(new FqName(packageClassFqName), fakeVirtualFile).getInternalName();
+
+        FqName packagePartFqName = PackagePartClassUtils.getPackagePartFqName(new FqName(packageClassFqName), fakeVirtualFile);
+        return AsmUtil.internalNameByFqNameWithoutInnerClasses(packagePartFqName);
     }
 
     private static enum Operation {

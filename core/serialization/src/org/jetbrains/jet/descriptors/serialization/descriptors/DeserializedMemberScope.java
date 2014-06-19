@@ -20,6 +20,7 @@ import kotlin.Function0;
 import kotlin.Function1;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.annotations.ReadOnly;
 import org.jetbrains.jet.descriptors.serialization.Flags;
 import org.jetbrains.jet.descriptors.serialization.ProtoBuf;
 import org.jetbrains.jet.descriptors.serialization.context.DeserializationContextWithTypes;
@@ -49,8 +50,7 @@ public abstract class DeserializedMemberScope implements JetScope {
         }
     };
 
-    // Never modified after creation
-    private final Map<Name, List<ProtoBuf.Callable>> membersProtos;
+    private final NotNullLazyValue<Map<Name, List<ProtoBuf.Callable>>> membersProtos;
 
     private final MemoizedFunctionToNotNull<Name, Collection<FunctionDescriptor>> functions;
     private final MemoizedFunctionToNotNull<Name, Collection<VariableDescriptor>> properties;
@@ -59,11 +59,17 @@ public abstract class DeserializedMemberScope implements JetScope {
 
     protected DeserializedMemberScope(
             @NotNull DeserializationContextWithTypes context,
-            @NotNull Collection<ProtoBuf.Callable> membersList
+            @NotNull final Collection<ProtoBuf.Callable> membersList
     ) {
         this.context = context;
-        this.membersProtos = groupByName(membersList);
+
         StorageManager storageManager = context.getStorageManager();
+        this.membersProtos = storageManager.createLazyValue(new Function0<Map<Name, List<ProtoBuf.Callable>>>() {
+            @Override
+            public Map<Name, List<ProtoBuf.Callable>> invoke() {
+                return groupByName(filteredMemberProtos(membersList));
+            }
+        });
         this.functions = storageManager.createMemoizedFunction(new Function1<Name, Collection<FunctionDescriptor>>() {
             @Override
             public Collection<FunctionDescriptor> invoke(Name name) {
@@ -89,6 +95,12 @@ public abstract class DeserializedMemberScope implements JetScope {
     }
 
     @NotNull
+    @ReadOnly
+    protected Collection<ProtoBuf.Callable> filteredMemberProtos(@NotNull Collection<ProtoBuf.Callable> allMemberProtos) {
+        return allMemberProtos;
+    }
+
+    @NotNull
     private Map<Name, List<ProtoBuf.Callable>> groupByName(@NotNull Collection<ProtoBuf.Callable> membersList) {
         Map<Name, List<ProtoBuf.Callable>> map = new HashMap<Name, List<ProtoBuf.Callable>>();
         for (ProtoBuf.Callable memberProto : membersList) {
@@ -105,7 +117,7 @@ public abstract class DeserializedMemberScope implements JetScope {
 
     @NotNull
     private <D extends CallableMemberDescriptor> Collection<D> computeMembersByName(Name name, Filter<ProtoBuf.Callable.CallableKind> callableKind) {
-        List<ProtoBuf.Callable> memberProtos = membersProtos.get(name);
+        List<ProtoBuf.Callable> memberProtos = membersProtos.invoke().get(name);
 
         Collection<D> descriptors = new LinkedHashSet<D>(memberProtos != null ? memberProtos.size() : 0);
         if (memberProtos != null) {
@@ -190,7 +202,7 @@ public abstract class DeserializedMemberScope implements JetScope {
     private Collection<DeclarationDescriptor> computeAllDescriptors() {
         Collection<DeclarationDescriptor> result = new LinkedHashSet<DeclarationDescriptor>(0);
 
-        for (Name name : membersProtos.keySet()) {
+        for (Name name : membersProtos.invoke().keySet()) {
             result.addAll(getFunctions(name));
             result.addAll(getProperties(name));
         }

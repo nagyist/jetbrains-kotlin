@@ -31,7 +31,10 @@ import org.jetbrains.jet.lang.reflect.ReflectionTypes;
 import org.jetbrains.jet.lang.resolve.BindingContext;
 import org.jetbrains.jet.lang.resolve.BindingTrace;
 import org.jetbrains.jet.lang.resolve.DelegatingBindingTrace;
+import org.jetbrains.jet.lang.resolve.name.FqName;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 public class GenerationState {
@@ -98,6 +101,15 @@ public class GenerationState {
 
     private final JvmFunctionImplTypes functionImplTypes;
 
+    @NotNull
+    private final ModuleDescriptor module;
+
+    @NotNull
+    private final Collection<FqName> packagesWithRemovedFiles;
+
+    @Nullable
+    private final String moduleId; // for PackageCodegen in incremental compilation mode
+
     public GenerationState(
             @NotNull Project project,
             @NotNull ClassBuilderFactory builderFactory,
@@ -106,7 +118,7 @@ public class GenerationState {
             @NotNull List<JetFile> files
     ) {
         this(project, builderFactory, Progress.DEAF, module, bindingContext, files, true, false, GenerateClassFilter.GENERATE_ALL,
-             InlineCodegenUtil.DEFAULT_INLINE_FLAG);
+             InlineCodegenUtil.DEFAULT_INLINE_FLAG, null, null);
     }
 
     public GenerationState(
@@ -119,11 +131,16 @@ public class GenerationState {
             boolean generateNotNullAssertions,
             boolean generateNotNullParamAssertions,
             GenerateClassFilter generateClassFilter,
-            boolean inlineEnabled
+            boolean inlineEnabled,
+            @Nullable Collection<FqName> packagesWithRemovedFiles,
+            @Nullable String moduleId
     ) {
         this.project = project;
         this.progress = progress;
+        this.module = module;
         this.files = files;
+        this.moduleId = moduleId;
+        this.packagesWithRemovedFiles = packagesWithRemovedFiles == null ? Collections.<FqName>emptySet() : packagesWithRemovedFiles;
         this.classBuilderMode = builderFactory.getClassBuilderMode();
         this.inlineEnabled = inlineEnabled;
 
@@ -238,5 +255,20 @@ public class GenerationState {
 
     public void setEarlierScriptsForReplInterpreter(@Nullable List<ScriptDescriptor> earlierScriptsForReplInterpreter) {
         this.earlierScriptsForReplInterpreter = earlierScriptsForReplInterpreter;
+    }
+
+    @NotNull
+    public ModuleDescriptor getModule() {
+        return module;
+    }
+
+    @NotNull
+    public Collection<FqName> getPackagesWithRemovedFiles() {
+        return packagesWithRemovedFiles;
+    }
+
+    @Nullable
+    public String getModuleId() {
+        return moduleId;
     }
 }

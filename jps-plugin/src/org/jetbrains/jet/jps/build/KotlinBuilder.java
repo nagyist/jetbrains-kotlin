@@ -18,6 +18,7 @@ package org.jetbrains.jet.jps.build;
 
 import com.intellij.openapi.util.Key;
 import com.intellij.openapi.util.io.FileUtil;
+import com.intellij.openapi.util.io.StreamUtil;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.util.Function;
 import com.intellij.util.containers.ContainerUtil;
@@ -37,6 +38,8 @@ import org.jetbrains.jet.compiler.runner.OutputItemsCollectorImpl;
 import org.jetbrains.jet.compiler.runner.SimpleOutputItem;
 import org.jetbrains.jet.config.IncrementalCompilation;
 import org.jetbrains.jet.jps.JpsKotlinCompilerSettings;
+import org.jetbrains.jet.jps.incremental.IncrementalCacheImpl;
+import org.jetbrains.jet.preloading.ClassLoaderFactory;
 import org.jetbrains.jet.utils.PathUtil;
 import org.jetbrains.jps.ModuleChunk;
 import org.jetbrains.jps.builders.BuildTarget;
@@ -52,8 +55,10 @@ import org.jetbrains.jps.model.module.JpsModule;
 import java.io.File;
 import java.io.FileFilter;
 import java.io.IOException;
+import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.net.URL;
 import java.util.*;
 
 import static org.jetbrains.jet.cli.common.messages.CompilerMessageLocation.NO_LOCATION;
@@ -64,6 +69,7 @@ import static org.jetbrains.jet.compiler.runner.KotlinCompilerRunner.runK2JvmCom
 
 public class KotlinBuilder extends ModuleLevelBuilder {
     private static final Key<Set<File>> ALL_COMPILED_FILES_KEY = Key.create("_all_kotlin_compiled_files_");
+    private static final Key<Set<ModuleBuildTarget>> PROCESSED_TARGETS_WITH_REMOVED_FILES = Key.create("_processed_targets_with_removed_files_");
 
     public static final String KOTLIN_BUILDER_NAME = "Kotlin Builder";
     private static final List<String> COMPILABLE_FILE_EXTENSIONS = Collections.singletonList("kt");
@@ -112,7 +118,14 @@ public class KotlinBuilder extends ModuleLevelBuilder {
 
         File outputDir = representativeTarget.getOutputDir();
 
-        CompilerEnvironment environment = CompilerEnvironment.getEnvironmentFor(PathUtil.getKotlinPathsForJpsPluginOrJpsTests(), outputDir);
+        CompilerEnvironment environment = CompilerEnvironment.getEnvironmentFor(
+                PathUtil.getKotlinPathsForJpsPluginOrJpsTests(), outputDir, new ClassLoaderFactory() {
+                    @Override
+                    public ClassLoader create(ClassLoader compilerClassLoader) {
+                        return new MyClassLoader(compilerClassLoader);
+                    }
+                }
+        );
         if (!environment.success()) {
             if (!hasKotlinFiles(chunk)) {
                 // Configuration is bad, but there's nothing to compile anyways
@@ -171,7 +184,19 @@ public class KotlinBuilder extends ModuleLevelBuilder {
             filesToCompile.removeAll(allCompiledFiles);
             allCompiledFiles.addAll(filesToCompile);
 
-            File moduleFile = KotlinBuilderModuleScriptGenerator.generateModuleDescription(context, chunk, filesToCompile);
+            Set<ModuleBuildTarget> processedTargetsWithRemoved = getProcessedTargetsWithRemovedFilesContainer(context);
+
+            boolean haveRemovedFiles = false;
+            for (ModuleBuildTarget target : chunk.getTargets()) {
+                if (!dirtyFilesHolder.getRemovedFiles(target).isEmpty()) {
+                    if (processedTargetsWithRemoved.add(target)) {
+                        haveRemovedFiles = true;
+                    }
+                }
+            }
+
+            File moduleFile = KotlinBuilderModuleScriptGenerator
+                    .generateModuleDescription(context, chunk, filesToCompile, haveRemovedFiles);
             if (moduleFile == null) {
                 // No Kotlin sources found
                 return ExitCode.NOTHING_DONE;
@@ -194,38 +219,57 @@ public class KotlinBuilder extends ModuleLevelBuilder {
             }
         }
 
-        for (SimpleOutputItem outputItem : outputItemCollector.getOutputs()) {
-            if (IncrementalCompilation.ENABLED) {
-                // TODO this is a hack: we don't remove
-                if (outputItem.getOutputFile().getName().endsWith("Package.class")) {
-                    continue;
+        IncrementalCacheImpl cache = new IncrementalCacheImpl(KotlinBuilderModuleScriptGenerator.getIncrementalCacheDir(context));
+
+        try {
+            for (ModuleBuildTarget target : chunk.getTargets()) {
+                for (String file : dirtyFilesHolder.getRemovedFiles(target)) {
+                    cache.clearCacheForRemovedFile(target.getId(), new File(file));
                 }
             }
-            BuildTarget<?> target = null;
-            Collection<File> sourceFiles = outputItem.getSourceFiles();
-            if (sourceFiles != null && !sourceFiles.isEmpty()) {
-                target = sourceToTarget.get(sourceFiles.iterator().next());
+
+            boolean significantChanges = false;
+
+            for (SimpleOutputItem outputItem : outputItemCollector.getOutputs()) {
+                BuildTarget<?> target = null;
+                Collection<File> sourceFiles = outputItem.getSourceFiles();
+                if (!sourceFiles.isEmpty()) {
+                    target = sourceToTarget.get(sourceFiles.iterator().next());
+                }
+
+                if (target == null) {
+                    target = representativeTarget;
+                }
+
+                File outputFile = outputItem.getOutputFile();
+
+                if (IncrementalCompilation.ENABLED) {
+                    if (cache.saveFileToCache(target.getId(), sourceFiles, outputFile)) {
+                        significantChanges = true;
+                    }
+                }
+
+                outputConsumer.registerOutputFile(target, outputFile, paths(sourceFiles));
+            }
+
+            if (IncrementalCompilation.ENABLED) {
+                // TODO should mark dependencies as dirty, as well
+                if (significantChanges) {
+                    FSOperations.markDirty(context, chunk, new FileFilter() {
+                        @Override
+                        public boolean accept(@NotNull File file) {
+                            return !allCompiledFiles.contains(file);
+                        }
+                    });
+                }
+                return ExitCode.ADDITIONAL_PASS_REQUIRED;
             }
             else {
-                messageCollector.report(EXCEPTION, "KotlinBuilder: outputItem.sourceFiles is null or empty, outputItem = " + outputItem, NO_LOCATION);
+                return ExitCode.OK;
             }
-
-            outputConsumer.registerOutputFile(target != null ? target : representativeTarget, outputItem.getOutputFile(),
-                                              paths(sourceFiles));
         }
-
-        if (IncrementalCompilation.ENABLED) {
-            // TODO should mark dependencies as dirty, as well
-            FSOperations.markDirty(context, chunk, new FileFilter() {
-                @Override
-                public boolean accept(@NotNull File file) {
-                    return !allCompiledFiles.contains(file);
-                }
-            });
-            return ExitCode.ADDITIONAL_PASS_REQUIRED;
-        }
-        else {
-            return ExitCode.OK;
+        finally {
+            cache.close();
         }
     }
 
@@ -236,6 +280,15 @@ public class KotlinBuilder extends ModuleLevelBuilder {
             ALL_COMPILED_FILES_KEY.set(context, allCompiledFiles);
         }
         return allCompiledFiles;
+    }
+
+    private static Set<ModuleBuildTarget> getProcessedTargetsWithRemovedFilesContainer(CompileContext context) {
+        Set<ModuleBuildTarget> set = PROCESSED_TARGETS_WITH_REMOVED_FILES.get(context);
+        if (set == null) {
+            set = new HashSet<ModuleBuildTarget>();
+            PROCESSED_TARGETS_WITH_REMOVED_FILES.set(context, set);
+        }
+        return set;
     }
 
     private static boolean hasKotlinFiles(@NotNull ModuleChunk chunk) {
@@ -330,5 +383,50 @@ public class KotlinBuilder extends ModuleLevelBuilder {
     @Override
     public List<String> getCompilableFileExtensions() {
         return COMPILABLE_FILE_EXTENSIONS;
+    }
+
+    private class MyClassLoader extends ClassLoader {
+        private final ClassLoader compilerClassLoader;
+        private final ClassLoader jpsPluginClassLoader = KotlinBuilder.this.getClass().getClassLoader();
+
+        private MyClassLoader(ClassLoader compilerClassLoader) {
+            this.compilerClassLoader = compilerClassLoader;
+        }
+
+        @NotNull
+        @Override
+        public Enumeration<URL> getResources(String name) throws IOException {
+            return jpsPluginClassLoader.getResources(name);
+        }
+
+        @Override
+        public Class<?> loadClass(@NotNull String name) throws ClassNotFoundException {
+            if (name.startsWith("org.jetbrains.jet.jps.incremental.")) {
+                return loadClassFromBytes(name);
+            }
+            else if (name.startsWith("org.jetbrains.jet.lang.resolve.kotlin.incremental.")) {
+                return compilerClassLoader.loadClass(name);
+            }
+            else {
+                return jpsPluginClassLoader.loadClass(name);
+            }
+        }
+
+        private Class<?> loadClassFromBytes(String name) throws ClassNotFoundException {
+            String classResource = name.replace('.', '/') + ".class";
+            InputStream resource = jpsPluginClassLoader.getResourceAsStream(classResource);
+            if (resource == null) {
+                return null;
+            }
+            byte[] bytes;
+            try {
+                bytes = StreamUtil.loadFromStream(resource);
+            }
+            catch (IOException e) {
+                throw new ClassNotFoundException("Couldn't load class " + name, e);
+            }
+
+            return defineClass(name, bytes, 0, bytes.length);
+        }
     }
 }

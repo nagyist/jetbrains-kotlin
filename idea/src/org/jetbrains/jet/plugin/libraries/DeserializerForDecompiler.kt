@@ -42,7 +42,6 @@ import org.jetbrains.jet.lang.resolve.kotlin.KotlinClassFinder
 import org.jetbrains.jet.lang.resolve.name.FqNameUnsafe
 import org.jetbrains.jet.lang.resolve.kotlin.DescriptorDeserializersStorage
 import org.jetbrains.jet.lang.resolve.kotlin.ConstantDescriptorLoader
-import org.jetbrains.jet.descriptors.serialization.descriptors.MemberFilter
 import org.jetbrains.jet.lang.resolve.java.structure.JavaClass
 import org.jetbrains.jet.descriptors.serialization.context.DeserializationGlobalContext
 
@@ -150,7 +149,7 @@ public class DeserializerForDecompiler(val packageDirectory: VirtualFile, val di
     }
 
     val deserializationContext = DeserializationGlobalContext(storageManager, descriptorFinder, annotationLoader,
-                                                              constantLoader, packageFragmentProvider, MemberFilter.ALWAYS_TRUE)
+                                                              constantLoader, packageFragmentProvider)
 
     private fun createDummyPackageFragment(fqName: FqName): MutablePackageFragmentDescriptor {
         return MutablePackageFragmentDescriptor(ErrorUtils.getErrorModule(), fqName)

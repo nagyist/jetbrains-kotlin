@@ -51,6 +51,8 @@ import org.jetbrains.jet.lang.resolve.BindingTrace;
 import org.jetbrains.jet.lang.resolve.ScriptNameUtil;
 import org.jetbrains.jet.lang.resolve.java.AnalyzerFacadeForJVM;
 import org.jetbrains.jet.lang.resolve.java.PackageClassUtils;
+import org.jetbrains.jet.lang.resolve.kotlin.incremental.IncrementalCacheProvider;
+import org.jetbrains.jet.lang.resolve.kotlin.incremental.IncrementalPackage;
 import org.jetbrains.jet.lang.resolve.name.FqName;
 import org.jetbrains.jet.plugin.MainFunctionDetector;
 import org.jetbrains.jet.utils.KotlinPaths;
@@ -58,6 +60,7 @@ import org.jetbrains.jet.utils.KotlinPaths;
 import java.io.File;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -129,7 +132,7 @@ public class KotlinToJVMBytecodeCompiler {
                             }
                         }
                 );
-                GenerationState generationState = generate(environment, exhaust, jetFiles);
+                GenerationState generationState = generate(environment, exhaust, jetFiles, module.getModuleName());
                 outputFiles.put(module, generationState.getFactory());
             }
         }
@@ -162,7 +165,10 @@ public class KotlinToJVMBytecodeCompiler {
             for (String annotationsRoot : module.getAnnotationsRoots()) {
                 configuration.add(JVMConfigurationKeys.ANNOTATIONS_PATH_KEY, new File(annotationsRoot));
             }
+
+            configuration.add(JVMConfigurationKeys.MODULE_IDS, module.getModuleName());
         }
+
         return configuration;
     }
 
@@ -265,7 +271,7 @@ public class KotlinToJVMBytecodeCompiler {
 
         exhaust.throwIfError();
 
-        return generate(environment, exhaust, environment.getSourceFiles());
+        return generate(environment, exhaust, environment.getSourceFiles(), null);
     }
 
     @Nullable
@@ -286,7 +292,9 @@ public class KotlinToJVMBytecodeCompiler {
                                 sharedTrace,
                                 Predicates.<PsiFile>alwaysTrue(),
                                 sharedModule,
-                                new CliSourcesMemberFilter(environment));
+                                environment.getConfiguration().get(JVMConfigurationKeys.MODULE_IDS),
+                                environment.getConfiguration().get(JVMConfigurationKeys.INCREMENTAL_CACHE_BASE_DIR)
+                        );
                     }
                 }, environment.getSourceFiles()
         );
@@ -307,16 +315,31 @@ public class KotlinToJVMBytecodeCompiler {
     private static GenerationState generate(
             @NotNull JetCoreEnvironment environment,
             @NotNull AnalyzeExhaust exhaust,
-            @NotNull List<JetFile> sourceFiles
+            @NotNull List<JetFile> sourceFiles,
+            @Nullable String moduleId
     ) {
         CompilerConfiguration configuration = environment.getConfiguration();
+        File incrementalCacheDir = configuration.get(JVMConfigurationKeys.INCREMENTAL_CACHE_BASE_DIR);
+        IncrementalCacheProvider incrementalCacheProvider = IncrementalCacheProvider.object$.getInstance();
+
+        Collection<FqName> packagesWithRemovedFiles =
+                incrementalCacheDir == null || moduleId == null || incrementalCacheProvider == null
+                ? null
+                : IncrementalPackage.getPackagesWithRemovedFiles(
+                        incrementalCacheProvider.getIncrementalCache(incrementalCacheDir), moduleId, environment.getSourceFiles());
         GenerationState generationState = new GenerationState(
-                environment.getProject(), ClassBuilderFactories.BINARIES, Progress.DEAF,
-                exhaust.getModuleDescriptor(), exhaust.getBindingContext(), sourceFiles,
+                environment.getProject(),
+                ClassBuilderFactories.BINARIES,
+                Progress.DEAF,
+                exhaust.getModuleDescriptor(),
+                exhaust.getBindingContext(),
+                sourceFiles,
                 configuration.get(JVMConfigurationKeys.GENERATE_NOT_NULL_ASSERTIONS, false),
                 configuration.get(JVMConfigurationKeys.GENERATE_NOT_NULL_PARAMETER_ASSERTIONS, false),
                 GenerationState.GenerateClassFilter.GENERATE_ALL,
-                configuration.get(JVMConfigurationKeys.ENABLE_INLINE, InlineCodegenUtil.DEFAULT_INLINE_FLAG)
+                configuration.get(JVMConfigurationKeys.ENABLE_INLINE, InlineCodegenUtil.DEFAULT_INLINE_FLAG),
+                packagesWithRemovedFiles,
+                moduleId
         );
         KotlinCodegenFacade.compileCorrectFiles(generationState, CompilationErrorHandler.THROW_EXCEPTION);
         return generationState;

@@ -19,13 +19,11 @@ package org.jetbrains.jet.lang.resolve.kotlin
 import org.jetbrains.jet.descriptors.serialization.context.DeserializationGlobalContext
 import org.jetbrains.jet.storage.StorageManager
 import org.jetbrains.jet.lang.resolve.java.lazy.LazyJavaPackageFragmentProvider
-import org.jetbrains.jet.descriptors.serialization.descriptors.MemberFilter
 
 public class DeserializationGlobalContextForJava(
         storageManager: StorageManager,
         descriptorFinder: JavaDescriptorFinder,
         annotationLoader: AnnotationDescriptorLoader,
         constantLoader: ConstantDescriptorLoader,
-        packageFragmentProvider: LazyJavaPackageFragmentProvider,
-        memberFilter: MemberFilter
-) : DeserializationGlobalContext(storageManager, descriptorFinder, annotationLoader, constantLoader, packageFragmentProvider, memberFilter)
+        packageFragmentProvider: LazyJavaPackageFragmentProvider
+) : DeserializationGlobalContext(storageManager, descriptorFinder, annotationLoader, constantLoader, packageFragmentProvider)

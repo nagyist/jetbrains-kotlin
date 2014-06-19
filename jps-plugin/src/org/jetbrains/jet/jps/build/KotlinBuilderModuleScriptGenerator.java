@@ -58,11 +58,12 @@ public class KotlinBuilderModuleScriptGenerator {
     public static File generateModuleDescription(
             CompileContext context,
             ModuleChunk chunk,
-            List<File> sourceFiles // ignored for non-incremental compilation
+            List<File> sourceFiles, // ignored for non-incremental compilation
+            boolean hasRemovedFiles
     )
             throws IOException
     {
-        KotlinModuleDescriptionBuilder builder = FACTORY.create();
+        KotlinModuleDescriptionBuilder builder = FACTORY.create(getIncrementalCacheDir(context).getAbsolutePath());
 
         boolean noSources = true;
 
@@ -78,7 +79,7 @@ public class KotlinBuilderModuleScriptGenerator {
                 sourceFiles = new ArrayList<File>(KotlinSourceFileCollector.getAllKotlinSourceFiles(target));
             }
 
-            if (sourceFiles.size() > 0) {
+            if (sourceFiles.size() > 0 || hasRemovedFiles) {
                 noSources = false;
 
                 if (logger.isEnabled()) {
@@ -104,6 +105,10 @@ public class KotlinBuilderModuleScriptGenerator {
         writeScriptToFile(context, builder.asText(), scriptFile);
 
         return scriptFile;
+    }
+
+    public static File getIncrementalCacheDir(CompileContext context) {
+        return new File(context.getProjectDescriptor().dataManager.getDataPaths().getDataStorageRoot(), "kotlin");
     }
 
     @NotNull

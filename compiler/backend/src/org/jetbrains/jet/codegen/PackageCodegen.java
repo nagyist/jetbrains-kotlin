@@ -20,11 +20,11 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Ordering;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.progress.ProcessCanceledException;
-import com.intellij.openapi.util.io.FileUtil;
+import com.intellij.openapi.util.Condition;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.util.ArrayUtil;
-import com.intellij.util.PathUtil;
 import com.intellij.util.SmartList;
+import com.intellij.util.containers.ContainerUtil;
 import kotlin.Function0;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -50,12 +50,10 @@ import org.jetbrains.jet.lang.resolve.BindingContext;
 import org.jetbrains.jet.lang.resolve.MemberComparator;
 import org.jetbrains.jet.lang.resolve.java.JvmAbi;
 import org.jetbrains.jet.lang.resolve.java.JvmAnnotationNames;
-import org.jetbrains.jet.lang.resolve.java.JvmClassName;
 import org.jetbrains.jet.lang.resolve.java.jvmSignature.JvmMethodSignature;
-import org.jetbrains.jet.lang.resolve.java.lazy.descriptors.LazyJavaPackageFragmentScope;
-import org.jetbrains.jet.lang.resolve.kotlin.BaseDescriptorLoader;
+import org.jetbrains.jet.lang.resolve.kotlin.PackagePartClassUtils;
+import org.jetbrains.jet.lang.resolve.kotlin.incremental.IncrementalPackageFragmentProvider;
 import org.jetbrains.jet.lang.resolve.name.FqName;
-import org.jetbrains.jet.lang.resolve.name.Name;
 import org.jetbrains.org.objectweb.asm.AnnotationVisitor;
 import org.jetbrains.org.objectweb.asm.MethodVisitor;
 import org.jetbrains.org.objectweb.asm.Type;
@@ -63,7 +61,6 @@ import org.jetbrains.org.objectweb.asm.Type;
 import java.util.*;
 
 import static org.jetbrains.jet.codegen.AsmUtil.asmDescByFqNameWithoutInnerClasses;
-import static org.jetbrains.jet.codegen.AsmUtil.asmTypeByFqNameWithoutInnerClasses;
 import static org.jetbrains.jet.descriptors.serialization.NameSerializationUtil.createNameResolver;
 import static org.jetbrains.jet.lang.resolve.java.PackageClassUtils.getPackageClassFqName;
 import static org.jetbrains.org.objectweb.asm.Opcodes.*;
@@ -79,19 +76,21 @@ public class PackageCodegen {
     public PackageCodegen(@NotNull GenerationState state, @NotNull Collection<JetFile> files, @NotNull final FqName fqName) {
         this.state = state;
         this.files = files;
-        this.packageFragment = getOnlyPackageFragment();
-        this.compiledPackageFragment = getCompiledPackageFragment(packageFragment);
+        this.packageFragment = getOnlyPackageFragment(fqName);
+        this.compiledPackageFragment = getCompiledPackageFragment(fqName);
         this.previouslyCompiledCallables = filterDeserializedCallables(compiledPackageFragment);
+
+        assert packageFragment != null || compiledPackageFragment != null : fqName.asString() + " " + files;
 
         this.v = new ClassBuilderOnDemand(new Function0<ClassBuilder>() {
             @Override
             public ClassBuilder invoke() {
                 Collection<JetFile> files = PackageCodegen.this.files;
-                JetFile sourceFile = files.size() == 1 && previouslyCompiledCallables.isEmpty()
-                                     ? files.iterator().next() : null;
+                JetFile sourceFile = getRepresentativePackageFile(files);
 
-                String className = JvmClassName.byFqNameWithoutInnerClasses(getPackageClassFqName(fqName)).getInternalName();
-                ClassBuilder v = PackageCodegen.this.state.getFactory().newVisitor(Type.getObjectType(className), files);
+                String className = AsmUtil.internalNameByFqNameWithoutInnerClasses(getPackageClassFqName(fqName));
+                ClassBuilder v = PackageCodegen.this.state.getFactory()
+                        .newVisitor(Type.getObjectType(className), getPackageFilesWithCallables(files));
                 v.defineClass(sourceFile, V1_6,
                               ACC_PUBLIC | ACC_FINAL,
                               className,
@@ -108,17 +107,28 @@ public class PackageCodegen {
         });
     }
 
+    // Returns null if file has callables in several files
     @Nullable
-    private static PackageFragmentDescriptor getCompiledPackageFragment(@NotNull PackageFragmentDescriptor packageFragment) {
+    private JetFile getRepresentativePackageFile(@NotNull Collection<JetFile> packageFiles) {
+        if (!previouslyCompiledCallables.isEmpty()) {
+            return null;
+        }
+
+        List<JetFile> packageFilesWithCallables = getPackageFilesWithCallables(packageFiles);
+        return packageFilesWithCallables.size() == 1 ? packageFilesWithCallables.get(0) : null;
+    }
+
+    @Nullable
+    private PackageFragmentDescriptor getCompiledPackageFragment(@NotNull FqName fqName) {
         if (!IncrementalCompilation.ENABLED) {
             return null;
         }
 
         // TODO rewrite it to something more robust when module system is implemented
-        for (PackageFragmentDescriptor anotherFragment : packageFragment.getContainingDeclaration().getPackageFragmentProvider()
-                .getPackageFragments(packageFragment.getFqName())) {
-            if (anotherFragment.getMemberScope() instanceof LazyJavaPackageFragmentScope) {
-                return anotherFragment;
+        for (PackageFragmentDescriptor fragment : state.getModule().getPackageFragmentProvider().getPackageFragments(fqName)) {
+            if (fragment instanceof IncrementalPackageFragmentProvider.IncrementalPackageFragment &&
+                ((IncrementalPackageFragmentProvider.IncrementalPackageFragment) fragment).getModuleId().equals(state.getModuleId())) {
+                return fragment;
             }
         }
         return null;
@@ -144,7 +154,7 @@ public class PackageCodegen {
                 @Override
                 public void run() {
                     FieldOwnerContext context = CodegenContext.STATIC.intoPackageFacade(
-                            Type.getObjectType(getPackagePartInternalName(member)),
+                            AsmUtil.asmTypeByFqNameWithoutInnerClasses(PackagePartClassUtils.getPackagePartFqName(member)),
                             compiledPackageFragment
                     );
 
@@ -204,9 +214,9 @@ public class PackageCodegen {
             }
         }
 
-        if (generateCallableMemberTasks.isEmpty()) return;
-
         generateDelegationsToPreviouslyCompiled(generateCallableMemberTasks);
+
+        if (generateCallableMemberTasks.isEmpty()) return;
 
         for (CallableMemberDescriptor member : Ordering.from(MemberComparator.INSTANCE).sortedCopy(generateCallableMemberTasks.keySet())) {
             generateCallableMemberTasks.get(member).run();
@@ -227,9 +237,9 @@ public class PackageCodegen {
         }
 
         DescriptorSerializer serializer = new DescriptorSerializer(new JavaSerializerExtension(bindings));
-        Collection<PackageFragmentDescriptor> packageFragments = compiledPackageFragment == null
-                                                                 ? Collections.singleton(packageFragment)
-                                                                 : Arrays.asList(packageFragment, compiledPackageFragment);
+        Collection<PackageFragmentDescriptor> packageFragments = Lists.newArrayList();
+        ContainerUtil.addIfNotNull(packageFragments, packageFragment);
+        ContainerUtil.addIfNotNull(packageFragments, compiledPackageFragment);
         ProtoBuf.Package packageProto = serializer.packageProto(packageFragments).build();
 
         if (packageProto.getMemberCount() == 0) return;
@@ -249,7 +259,7 @@ public class PackageCodegen {
     @Nullable
     private ClassBuilder generate(@NotNull JetFile file, @NotNull Map<CallableMemberDescriptor, Runnable> generateCallableMemberTasks) {
         boolean generatePackagePart = false;
-        Type packagePartType = getPackagePartType(getPackageClassFqName(packageFragment.getFqName()), file.getVirtualFile());
+        Type packagePartType = PackagePartClassUtils.getPackagePartType(file);
         PackageContext packagePartContext = CodegenContext.STATIC.intoPackagePart(packageFragment, packagePartType);
 
         for (JetDeclaration declaration : file.getDeclarations()) {
@@ -317,60 +327,53 @@ public class PackageCodegen {
         };
     }
 
-    @NotNull
-    private PackageFragmentDescriptor getOnlyPackageFragment() {
+    @Nullable
+    private PackageFragmentDescriptor getOnlyPackageFragment(@NotNull FqName expectedFqName) {
         SmartList<PackageFragmentDescriptor> fragments = new SmartList<PackageFragmentDescriptor>();
         for (JetFile file : files) {
             PackageFragmentDescriptor fragment = state.getBindingContext().get(BindingContext.FILE_TO_PACKAGE_FRAGMENT, file);
             assert fragment != null : "package fragment is null for " + file;
 
+            assert expectedFqName.equals(fragment.getFqName()) :
+                    "expected package fq name: " + expectedFqName + ", actual: " + fragment.getFqName();
+
             if (!fragments.contains(fragment)) {
                 fragments.add(fragment);
             }
         }
-        if (fragments.size() != 1) {
+        if (fragments.size() > 1) {
             throw new IllegalStateException("More than one package fragment, files: " + files + " | fragments: " + fragments);
+        }
+
+        if (fragments.isEmpty()) {
+            return null;
         }
         return fragments.get(0);
     }
 
     public void generateClassOrObject(@NotNull JetClassOrObject classOrObject) {
         JetFile file = classOrObject.getContainingJetFile();
-        Type packagePartType = getPackagePartType(getPackageClassFqName(packageFragment.getFqName()), file.getVirtualFile());
+        Type packagePartType = PackagePartClassUtils.getPackagePartType(file);
         CodegenContext context = CodegenContext.STATIC.intoPackagePart(packageFragment, packagePartType);
         MemberCodegen.genClassOrObject(context, classOrObject, state, null);
     }
 
+    @NotNull
+    public static List<JetFile> getPackageFilesWithCallables(@NotNull Collection<JetFile> packageFiles) {
+        return ContainerUtil.filter(packageFiles, new Condition<JetFile>() {
+            @Override
+            public boolean value(JetFile packageFile) {
+                for (JetDeclaration declaration : packageFile.getDeclarations()) {
+                    if (declaration instanceof JetProperty || declaration instanceof JetNamedFunction) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+        });
+    }
+
     public void done() {
         v.done();
-    }
-
-    @NotNull
-    public static Type getPackagePartType(@NotNull FqName facadeFqName, @NotNull VirtualFile file) {
-        String fileName = FileUtil.getNameWithoutExtension(PathUtil.getFileName(file.getName()));
-
-        // path hashCode to prevent same name / different path collision
-        String srcName = facadeFqName.shortName().asString() + "-" + replaceSpecialSymbols(fileName) + "-" + Integer.toHexString(
-                JvmCodegenUtil.getPathHashCode(file));
-
-        return asmTypeByFqNameWithoutInnerClasses(facadeFqName.parent().child(Name.identifier(srcName)));
-    }
-
-    @NotNull
-    private static String replaceSpecialSymbols(@NotNull String str) {
-        return str.replace('.', '_');
-    }
-
-    @NotNull
-    public static String getPackagePartInternalName(@NotNull JetFile file) {
-        FqName packageFqName = file.getPackageFqName();
-        return getPackagePartType(getPackageClassFqName(packageFqName), file.getVirtualFile()).getInternalName();
-    }
-
-    @NotNull
-    public static String getPackagePartInternalName(@NotNull DeserializedCallableMemberDescriptor callable) {
-        FqName packageFqName = ((PackageFragmentDescriptor) callable.getContainingDeclaration()).getFqName();
-        FqName packagePartFqName = packageFqName.child(BaseDescriptorLoader.getPackagePartClassName(callable));
-        return JvmClassName.byFqNameWithoutInnerClasses(packagePartFqName).getInternalName();
     }
 }

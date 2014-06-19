@@ -37,7 +37,7 @@ public abstract class AbstractDescriptorFinder implements DescriptorFinder {
     ) {
         final DeserializationGlobalContext deserializationGlobalContext =
                 new DeserializationGlobalContext(storageManager, this, annotationLoader, constantLoader,
-                                                 packageFragmentProvider, MemberFilter.ALWAYS_TRUE);
+                                                 packageFragmentProvider);
         this.findClass = storageManager.createMemoizedFunctionWithNullableValues(new Function1<ClassId, ClassDescriptor>() {
             @Override
             public ClassDescriptor invoke(ClassId classId) {

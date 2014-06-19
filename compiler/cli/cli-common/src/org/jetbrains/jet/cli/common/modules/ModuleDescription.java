@@ -18,6 +18,7 @@ package org.jetbrains.jet.cli.common.modules;
 
 import com.intellij.util.SmartList;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 
