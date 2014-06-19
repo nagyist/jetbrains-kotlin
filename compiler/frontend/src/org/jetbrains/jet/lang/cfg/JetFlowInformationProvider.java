@@ -29,7 +29,17 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.jet.lang.cfg.PseudocodeVariablesData.VariableInitState;
 import org.jetbrains.jet.lang.cfg.PseudocodeVariablesData.VariableUseState;
-import org.jetbrains.jet.lang.cfg.pseudocode.*;
+import org.jetbrains.jet.lang.cfg.pseudocode.Pseudocode;
+import org.jetbrains.jet.lang.cfg.pseudocode.PseudocodeUtil;
+import org.jetbrains.jet.lang.cfg.pseudocode.instructions.Instruction;
+import org.jetbrains.jet.lang.cfg.pseudocode.instructions.InstructionVisitor;
+import org.jetbrains.jet.lang.cfg.pseudocode.instructions.JetElementInstruction;
+import org.jetbrains.jet.lang.cfg.pseudocode.instructions.eval.*;
+import org.jetbrains.jet.lang.cfg.pseudocode.instructions.jumps.*;
+import org.jetbrains.jet.lang.cfg.pseudocode.instructions.special.LocalFunctionDeclarationInstruction;
+import org.jetbrains.jet.lang.cfg.pseudocode.instructions.special.MarkInstruction;
+import org.jetbrains.jet.lang.cfg.pseudocode.instructions.special.SubroutineExitInstruction;
+import org.jetbrains.jet.lang.cfg.pseudocode.instructions.special.VariableDeclarationInstruction;
 import org.jetbrains.jet.lang.cfg.pseudocodeTraverser.Edges;
 import org.jetbrains.jet.lang.cfg.pseudocodeTraverser.PseudocodeTraverserPackage;
 import org.jetbrains.jet.lang.cfg.pseudocodeTraverser.TraversalOrder;
@@ -246,6 +256,7 @@ public class JetFlowInformationProvider {
         for (Instruction deadInstruction : pseudocode.getDeadInstructions()) {
             if (!(deadInstruction instanceof JetElementInstruction)
                     || deadInstruction instanceof LoadUnitValueInstruction
+                    || deadInstruction instanceof MergeInstruction
                     || (deadInstruction instanceof MagicInstruction && ((MagicInstruction) deadInstruction).getSynthetic())) continue;
 
             JetElement element = ((JetElementInstruction) deadInstruction).getElement();

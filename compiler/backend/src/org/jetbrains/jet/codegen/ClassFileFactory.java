@@ -28,6 +28,7 @@ import org.jetbrains.jet.OutputFile;
 import org.jetbrains.jet.OutputFileCollection;
 import org.jetbrains.jet.codegen.state.GenerationState;
 import org.jetbrains.jet.lang.psi.JetFile;
+import org.jetbrains.jet.lang.resolve.java.diagnostics.JvmDeclarationOrigin;
 import org.jetbrains.jet.lang.resolve.name.FqName;
 import org.jetbrains.org.objectweb.asm.Type;
 
@@ -48,16 +49,22 @@ public class ClassFileFactory implements OutputFileCollection {
     }
 
     @NotNull
-    public ClassBuilder newVisitor(@NotNull Type asmType, @NotNull PsiFile sourceFile) {
-        return newVisitor(asmType, Collections.singletonList(sourceFile));
+    public ClassBuilder newVisitor(
+            @NotNull JvmDeclarationOrigin origin,
+            @NotNull Type asmType,
+            @NotNull PsiFile sourceFile) {
+        return newVisitor(origin, asmType, Collections.singletonList(sourceFile));
     }
 
     @NotNull
-    public ClassBuilder newVisitor(@NotNull Type asmType, @NotNull Collection<? extends PsiFile> sourceFiles) {
+    public ClassBuilder newVisitor(
+            @NotNull JvmDeclarationOrigin origin,
+            @NotNull Type asmType,
+            @NotNull Collection<? extends PsiFile> sourceFiles) {
         String outputFilePath = asmType.getInternalName() + ".class";
         List<File> ioSourceFiles = toIoFilesIgnoringNonPhysical(sourceFiles);
         state.getProgress().reportOutput(ioSourceFiles, new File(outputFilePath));
-        ClassBuilder answer = builderFactory.newClassBuilder();
+        ClassBuilder answer = builderFactory.newClassBuilder(origin);
         generators.put(outputFilePath, new ClassBuilderAndSourceFileList(answer, ioSourceFiles));
         return answer;
     }

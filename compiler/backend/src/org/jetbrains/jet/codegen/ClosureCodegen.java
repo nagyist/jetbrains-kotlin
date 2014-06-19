@@ -45,6 +45,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.jetbrains.jet.codegen.AsmUtil.*;
+import static org.jetbrains.jet.lang.resolve.java.diagnostics.DiagnosticsPackage.OtherOrigin;
 import static org.jetbrains.jet.codegen.JvmCodegenUtil.isConst;
 import static org.jetbrains.jet.codegen.binding.CodegenBinding.*;
 import static org.jetbrains.jet.lang.resolve.java.JvmAnnotationNames.KotlinSyntheticClass;
@@ -119,7 +120,7 @@ public class ClosureCodegen extends ParentCodegenAware {
     }
 
     public void gen() {
-        ClassBuilder cv = state.getFactory().newVisitor(asmType, fun.getContainingFile());
+        ClassBuilder cv = state.getFactory().newVisitor(OtherOrigin(fun, funDescriptor), asmType, fun.getContainingFile());
 
         FunctionDescriptor erasedInterfaceFunction;
         if (samType == null) {
@@ -161,7 +162,7 @@ public class ClosureCodegen extends ParentCodegenAware {
         generateBridge(cv, typeMapper.mapSignature(erasedInterfaceFunction).getAsmMethod(), jvmMethodSignature.getAsmMethod());
 
         FunctionCodegen fc = new FunctionCodegen(context, cv, state, getParentCodegen());
-        fc.generateMethod(fun, jvmMethodSignature, funDescriptor, strategy);
+        fc.generateMethod(OtherOrigin(fun, funDescriptor), jvmMethodSignature, funDescriptor, strategy);
 
         this.constructor = generateConstructor(cv, superClassAsmType);
 
@@ -200,10 +201,10 @@ public class ClosureCodegen extends ParentCodegenAware {
 
 
     private void generateConstInstance(@NotNull ClassBuilder cv) {
-        MethodVisitor mv = cv.newMethod(fun, ACC_STATIC | ACC_SYNTHETIC, "<clinit>", "()V", null, ArrayUtil.EMPTY_STRING_ARRAY);
+        MethodVisitor mv = cv.newMethod(OtherOrigin(fun, funDescriptor), ACC_STATIC | ACC_SYNTHETIC, "<clinit>", "()V", null, ArrayUtil.EMPTY_STRING_ARRAY);
         InstructionAdapter iv = new InstructionAdapter(mv);
 
-        cv.newField(fun, ACC_STATIC | ACC_FINAL, JvmAbi.INSTANCE_FIELD, asmType.getDescriptor(), null, null);
+        cv.newField(OtherOrigin(fun, funDescriptor), ACC_STATIC | ACC_FINAL, JvmAbi.INSTANCE_FIELD, asmType.getDescriptor(), null, null);
 
         if (state.getClassBuilderMode() == ClassBuilderMode.FULL) {
             mv.visitCode();
@@ -220,7 +221,7 @@ public class ClosureCodegen extends ParentCodegenAware {
         if (bridge.equals(delegate)) return;
 
         MethodVisitor mv =
-                cv.newMethod(fun, ACC_PUBLIC | ACC_BRIDGE, bridge.getName(), bridge.getDescriptor(), null, ArrayUtil.EMPTY_STRING_ARRAY);
+                cv.newMethod(OtherOrigin(fun, funDescriptor), ACC_PUBLIC | ACC_BRIDGE, bridge.getName(), bridge.getDescriptor(), null, ArrayUtil.EMPTY_STRING_ARRAY);
 
         if (state.getClassBuilderMode() != ClassBuilderMode.FULL) return;
 
@@ -254,21 +255,10 @@ public class ClosureCodegen extends ParentCodegenAware {
     private Method generateConstructor(@NotNull ClassBuilder cv, @NotNull Type superClassAsmType) {
         List<FieldInfo> args = calculateConstructorParameters(typeMapper, closure, asmType);
 
-        return generateConstructor(cv, args, fun, superClassAsmType, state, visibilityFlag);
-    }
-
-    public static Method generateConstructor(
-            @NotNull ClassBuilder cv,
-            @NotNull List<FieldInfo> args,
-            @Nullable PsiElement fun,
-            @NotNull Type superClass,
-            @NotNull GenerationState state,
-            int flags
-    ) {
         Type[] argTypes = fieldListToTypeArray(args);
 
         Method constructor = new Method("<init>", Type.VOID_TYPE, argTypes);
-        MethodVisitor mv = cv.newMethod(fun, flags, "<init>", constructor.getDescriptor(), null,
+        MethodVisitor mv = cv.newMethod(OtherOrigin(fun, funDescriptor), visibilityFlag, "<init>", constructor.getDescriptor(), null,
                                         ArrayUtil.EMPTY_STRING_ARRAY);
         if (state.getClassBuilderMode() == ClassBuilderMode.FULL) {
             mv.visitCode();
@@ -279,8 +269,8 @@ public class ClosureCodegen extends ParentCodegenAware {
                 k = AsmUtil.genAssignInstanceFieldFromParam(fieldInfo, k, iv);
             }
 
-            iv.load(0, superClass);
-            iv.invokespecial(superClass.getInternalName(), "<init>", "()V");
+            iv.load(0, superClassAsmType);
+            iv.invokespecial(superClassAsmType.getInternalName(), "<init>", "()V");
 
             iv.visitInsn(RETURN);
 

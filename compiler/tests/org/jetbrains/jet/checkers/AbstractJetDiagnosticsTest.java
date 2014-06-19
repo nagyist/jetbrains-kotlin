@@ -88,13 +88,14 @@ public abstract class AbstractJetDiagnosticsTest extends BaseDiagnosticsTest {
                     null,
                     null
             );
+            checkAllResolvedCallsAreCompleted(jetFiles, moduleTrace.getBindingContext());
         }
 
         boolean ok = true;
 
         StringBuilder actualText = new StringBuilder();
         for (TestFile testFile : testFiles) {
-            ok &= testFile.getActualText(moduleBindings.get(testFile.getModule()), actualText);
+            ok &= testFile.getActualText(moduleBindings.get(testFile.getModule()), actualText, groupedByModule.size() > 1);
         }
 
         JetTestUtils.assertEqualsToFile(testDataFile, actualText.toString());

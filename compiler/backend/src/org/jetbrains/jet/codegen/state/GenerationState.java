@@ -25,6 +25,7 @@ import org.jetbrains.jet.codegen.inline.InlineCodegenUtil;
 import org.jetbrains.jet.codegen.intrinsics.IntrinsicMethods;
 import org.jetbrains.jet.lang.descriptors.ModuleDescriptor;
 import org.jetbrains.jet.lang.descriptors.ScriptDescriptor;
+import org.jetbrains.jet.lang.diagnostics.DiagnosticHolder;
 import org.jetbrains.jet.lang.psi.JetClassOrObject;
 import org.jetbrains.jet.lang.psi.JetFile;
 import org.jetbrains.jet.lang.reflect.ReflectionTypes;
@@ -40,13 +41,6 @@ import java.util.List;
 public class GenerationState {
     public interface GenerateClassFilter {
         boolean shouldProcess(JetClassOrObject classOrObject);
-
-        GenerateClassFilter ONLY_PACKAGE_CLASS = new GenerateClassFilter() {
-            @Override
-            public boolean shouldProcess(JetClassOrObject classOrObject) {
-                return false;
-            }
-        };
 
         GenerateClassFilter GENERATE_ALL = new GenerateClassFilter() {
             @Override
@@ -118,7 +112,7 @@ public class GenerationState {
             @NotNull List<JetFile> files
     ) {
         this(project, builderFactory, Progress.DEAF, module, bindingContext, files, true, false, GenerateClassFilter.GENERATE_ALL,
-             InlineCodegenUtil.DEFAULT_INLINE_FLAG, null, null);
+             InlineCodegenUtil.DEFAULT_INLINE_FLAG, null, null, DiagnosticHolder.DO_NOTHING);
     }
 
     public GenerationState(
@@ -133,7 +127,8 @@ public class GenerationState {
             GenerateClassFilter generateClassFilter,
             boolean inlineEnabled,
             @Nullable Collection<FqName> packagesWithRemovedFiles,
-            @Nullable String moduleId
+            @Nullable String moduleId,
+            @NotNull DiagnosticHolder diagnostics
     ) {
         this.project = project;
         this.progress = progress;
@@ -150,7 +145,8 @@ public class GenerationState {
         this.typeMapper = new JetTypeMapper(this.bindingContext, classBuilderMode);
 
         this.intrinsics = new IntrinsicMethods();
-        this.classFileFactory = new ClassFileFactory(this, builderFactory);
+        this.classFileFactory = new ClassFileFactory(this, new BuilderFactoryForDuplicateSignatureDiagnostics(
+                builderFactory, this.bindingContext, diagnostics));
 
         this.generateNotNullAssertions = generateNotNullAssertions;
         this.generateNotNullParamAssertions = generateNotNullParamAssertions;

@@ -67,6 +67,7 @@ import org.jetbrains.org.objectweb.asm.commons.Method;
 import java.util.*;
 
 import static org.jetbrains.jet.codegen.AsmUtil.*;
+import static org.jetbrains.jet.lang.resolve.java.diagnostics.DiagnosticsPackage.OtherOrigin;
 import static org.jetbrains.jet.codegen.JvmCodegenUtil.*;
 import static org.jetbrains.jet.codegen.binding.CodegenBinding.*;
 import static org.jetbrains.jet.lang.resolve.BindingContext.*;
@@ -171,11 +172,16 @@ public class ExpressionCodegen extends JetVisitor<StackValue, StackValue> implem
     public CalculatedClosure generateObjectLiteral(@NotNull JetObjectLiteralExpression literal) {
         JetObjectDeclaration objectDeclaration = literal.getObjectDeclaration();
 
-        Type asmType = asmTypeForAnonymousClass(bindingContext, objectDeclaration);
-        ClassBuilder classBuilder = state.getFactory().newVisitor(asmType, literal.getContainingFile());
-
         ClassDescriptor classDescriptor = bindingContext.get(CLASS, objectDeclaration);
         assert classDescriptor != null;
+
+        Type asmType = asmTypeForAnonymousClass(bindingContext, objectDeclaration);
+        ClassBuilder classBuilder = state.getFactory().newVisitor(
+                OtherOrigin(objectDeclaration, classDescriptor),
+                asmType,
+                literal.getContainingFile()
+        );
+
 
         ClassContext objectContext = context.intoAnonymousClass(classDescriptor, this);
 
@@ -263,7 +269,7 @@ public class ExpressionCodegen extends JetVisitor<StackValue, StackValue> implem
         assert descriptor != null;
 
         Type asmType = asmTypeForAnonymousClass(bindingContext, declaration);
-        ClassBuilder classBuilder = state.getFactory().newVisitor(asmType, declaration.getContainingFile());
+        ClassBuilder classBuilder = state.getFactory().newVisitor(OtherOrigin(declaration, descriptor), asmType, declaration.getContainingFile());
 
         ClassContext objectContext = context.intoAnonymousClass(descriptor, this);
         new ImplementationBodyCodegen(declaration, objectContext, classBuilder, state, getParentCodegen()).generate();
@@ -1942,7 +1948,7 @@ public class ExpressionCodegen extends JetVisitor<StackValue, StackValue> implem
                               KotlinSyntheticClass.Kind.SAM_LAMBDA);
         }
 
-        Type asmType = state.getSamWrapperClasses().getSamWrapperClass(samType, expression.getContainingJetFile());
+        Type asmType = state.getSamWrapperClasses().getSamWrapperClass(samType, expression.getContainingJetFile(), getParentCodegen());
 
         v.anew(asmType);
         v.dup();

@@ -16,17 +16,15 @@
 
 package org.jetbrains.jet.lang.cfg.pseudocode
 
-import java.util.Collections
-import org.jetbrains.jet.lang.psi.JetExpression
-import kotlin.properties.Delegates
 import org.jetbrains.jet.lang.psi.JetElement
+import org.jetbrains.jet.lang.cfg.pseudocode.instructions.eval.InstructionWithValue
 
 public trait PseudoValue {
     public val debugName: String
     public val element: JetElement?
-    public val createdAt: Instruction
+    public val createdAt: InstructionWithValue
 }
 
 public trait PseudoValueFactory {
-    public fun newValue(element: JetElement?, instruction: Instruction): PseudoValue
+    public fun newValue(element: JetElement?, instruction: InstructionWithValue): PseudoValue
 }

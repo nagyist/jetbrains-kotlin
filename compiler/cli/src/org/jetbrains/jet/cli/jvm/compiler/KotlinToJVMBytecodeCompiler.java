@@ -30,6 +30,7 @@ import kotlin.modules.Module;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.jet.analyzer.AnalyzeExhaust;
+import org.jetbrains.jet.asJava.FilteredJvmDiagnostics;
 import org.jetbrains.jet.cli.common.CLIConfigurationKeys;
 import org.jetbrains.jet.cli.common.CompilerPlugin;
 import org.jetbrains.jet.cli.common.CompilerPluginContext;
@@ -48,6 +49,7 @@ import org.jetbrains.jet.lang.parsing.JetScriptDefinitionProvider;
 import org.jetbrains.jet.lang.psi.JetFile;
 import org.jetbrains.jet.lang.resolve.AnalyzerScriptParameter;
 import org.jetbrains.jet.lang.resolve.BindingTrace;
+import org.jetbrains.jet.lang.resolve.BindingTraceContext;
 import org.jetbrains.jet.lang.resolve.ScriptNameUtil;
 import org.jetbrains.jet.lang.resolve.java.AnalyzerFacadeForJVM;
 import org.jetbrains.jet.lang.resolve.java.PackageClassUtils;
@@ -327,6 +329,7 @@ public class KotlinToJVMBytecodeCompiler {
                 ? null
                 : IncrementalPackage.getPackagesWithRemovedFiles(
                         incrementalCacheProvider.getIncrementalCache(incrementalCacheDir), moduleId, environment.getSourceFiles());
+        BindingTraceContext diagnosticHolder = new BindingTraceContext();
         GenerationState generationState = new GenerationState(
                 environment.getProject(),
                 ClassBuilderFactories.BINARIES,
@@ -339,9 +342,17 @@ public class KotlinToJVMBytecodeCompiler {
                 GenerationState.GenerateClassFilter.GENERATE_ALL,
                 configuration.get(JVMConfigurationKeys.ENABLE_INLINE, InlineCodegenUtil.DEFAULT_INLINE_FLAG),
                 packagesWithRemovedFiles,
-                moduleId
+                moduleId,
+                diagnosticHolder
         );
         KotlinCodegenFacade.compileCorrectFiles(generationState, CompilationErrorHandler.THROW_EXCEPTION);
+        AnalyzerWithCompilerReport.reportDiagnostics(
+                new FilteredJvmDiagnostics(
+                        diagnosticHolder.getBindingContext().getDiagnostics(),
+                        exhaust.getBindingContext().getDiagnostics()
+                ),
+                environment.getConfiguration().get(CLIConfigurationKeys.MESSAGE_COLLECTOR_KEY)
+        );
         return generationState;
     }
 }

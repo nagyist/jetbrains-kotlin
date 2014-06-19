@@ -42,6 +42,7 @@ import org.jetbrains.jet.lang.resolve.calls.CallResolverUtil;
 import org.jetbrains.jet.lang.resolve.constants.ArrayValue;
 import org.jetbrains.jet.lang.resolve.constants.CompileTimeConstant;
 import org.jetbrains.jet.lang.resolve.constants.JavaClassValue;
+import org.jetbrains.jet.lang.resolve.java.diagnostics.JvmDeclarationOrigin;
 import org.jetbrains.jet.lang.resolve.java.jvmSignature.JvmMethodParameterKind;
 import org.jetbrains.jet.lang.resolve.java.jvmSignature.JvmMethodParameterSignature;
 import org.jetbrains.jet.lang.resolve.java.jvmSignature.JvmMethodSignature;
@@ -67,11 +68,11 @@ import static org.jetbrains.jet.codegen.JvmSerializationBindings.*;
 import static org.jetbrains.jet.codegen.binding.CodegenBinding.isLocalNamedFun;
 import static org.jetbrains.jet.lang.descriptors.CallableMemberDescriptor.Kind.DECLARATION;
 import static org.jetbrains.jet.lang.resolve.BindingContextUtils.callableDescriptorToDeclaration;
-import static org.jetbrains.jet.lang.resolve.BindingContextUtils.descriptorToDeclaration;
 import static org.jetbrains.jet.lang.resolve.DescriptorUtils.isFunctionLiteral;
 import static org.jetbrains.jet.lang.resolve.DescriptorUtils.isTrait;
 import static org.jetbrains.jet.lang.resolve.java.AsmTypeConstants.OBJECT_TYPE;
 import static org.jetbrains.jet.lang.resolve.java.JvmAnnotationNames.OLD_JET_VALUE_PARAMETER_ANNOTATION;
+import static org.jetbrains.jet.lang.resolve.java.diagnostics.DiagnosticsPackage.OtherOrigin;
 import static org.jetbrains.org.objectweb.asm.Opcodes.*;
 
 public class FunctionCodegen extends ParentCodegenAware {
@@ -99,7 +100,8 @@ public class FunctionCodegen extends ParentCodegenAware {
         JvmMethodSignature method = typeMapper.mapSignature(functionDescriptor, kind);
 
         if (kind != OwnerKind.TRAIT_IMPL || function.hasBody()) {
-            generateMethod(function, method, functionDescriptor,
+            generateMethod(OtherOrigin(function, functionDescriptor),
+                           method, functionDescriptor,
                            new FunctionGenerationStrategy.FunctionDefault(state, functionDescriptor, function));
         }
 
@@ -108,7 +110,7 @@ public class FunctionCodegen extends ParentCodegenAware {
     }
 
     public void generateMethod(
-            @Nullable PsiElement origin,
+            @NotNull JvmDeclarationOrigin origin,
             @NotNull JvmMethodSignature jvmSignature,
             @NotNull FunctionDescriptor functionDescriptor,
             @NotNull FunctionGenerationStrategy strategy
@@ -117,7 +119,7 @@ public class FunctionCodegen extends ParentCodegenAware {
     }
 
     public void generateMethod(
-            @Nullable PsiElement origin,
+            @NotNull JvmDeclarationOrigin origin,
             @NotNull JvmMethodSignature jvmSignature,
             @NotNull FunctionDescriptor functionDescriptor,
             @NotNull MethodContext methodContext,
@@ -147,6 +149,8 @@ public class FunctionCodegen extends ParentCodegenAware {
 
         generateJetValueParameterAnnotations(mv, functionDescriptor, jvmSignature);
 
+        generateBridges(functionDescriptor);
+
         if (state.getClassBuilderMode() == ClassBuilderMode.LIGHT_CLASSES || isAbstractMethod(functionDescriptor, methodContextKind)) {
             generateLocalVariableTable(
                     mv,
@@ -162,11 +166,9 @@ public class FunctionCodegen extends ParentCodegenAware {
 
         generateMethodBody(mv, functionDescriptor, methodContext, jvmSignature, strategy, getParentCodegen());
 
-        endVisit(mv, null, origin);
+        endVisit(mv, null, origin.getElement());
 
         methodContext.recordSyntheticAccessorIfNeeded(functionDescriptor, bindingContext);
-
-        generateBridges(functionDescriptor);
     }
 
     private void generateParameterAnnotations(
@@ -449,7 +451,7 @@ public class FunctionCodegen extends ParentCodegenAware {
         if (!bridgesToGenerate.isEmpty()) {
             PsiElement origin = descriptor.getKind() == DECLARATION ? callableDescriptorToDeclaration(bindingContext, descriptor) : null;
             for (Bridge<Method> bridge : bridgesToGenerate) {
-                generateBridge(origin, bridge.getFrom(), bridge.getTo());
+                generateBridge(origin, descriptor, bridge.getFrom(), bridge.getTo());
             }
         }
     }
@@ -506,7 +508,7 @@ public class FunctionCodegen extends ParentCodegenAware {
             return;
         }
         int flags = getVisibilityAccessFlag(constructorDescriptor);
-        MethodVisitor mv = classBuilder.newMethod(null, flags, "<init>", "()V", null,
+        MethodVisitor mv = classBuilder.newMethod(OtherOrigin(constructorDescriptor), flags, "<init>", "()V", null,
                                                   getThrownExceptions(constructorDescriptor, state.getTypeMapper()));
 
         if (state.getClassBuilderMode() == ClassBuilderMode.LIGHT_CLASSES) return;
@@ -558,7 +560,7 @@ public class FunctionCodegen extends ParentCodegenAware {
 
         Method defaultMethod = typeMapper.mapDefaultMethod(functionDescriptor, kind, owner);
 
-        MethodVisitor mv = v.newMethod(null, flags | (isConstructor ? 0 : ACC_STATIC),
+        MethodVisitor mv = v.newMethod(OtherOrigin(functionDescriptor), flags | (isConstructor ? 0 : ACC_STATIC),
                                        defaultMethod.getName(),
                                        defaultMethod.getDescriptor(), null,
                                        getThrownExceptions(functionDescriptor, typeMapper));
@@ -720,10 +722,15 @@ public class FunctionCodegen extends ParentCodegenAware {
         return true;
     }
 
-    private void generateBridge(@Nullable PsiElement origin, @NotNull Method bridge, @NotNull Method delegateTo) {
+    private void generateBridge(
+            @Nullable PsiElement origin,
+            @NotNull FunctionDescriptor descriptor,
+            @NotNull Method bridge,
+            @NotNull Method delegateTo
+    ) {
         int flags = ACC_PUBLIC | ACC_BRIDGE | ACC_SYNTHETIC; // TODO.
 
-        MethodVisitor mv = v.newMethod(null, flags, delegateTo.getName(), bridge.getDescriptor(), null, null);
+        MethodVisitor mv = v.newMethod(OtherOrigin(descriptor), flags, delegateTo.getName(), bridge.getDescriptor(), null, null);
         if (state.getClassBuilderMode() != ClassBuilderMode.FULL) return;
 
         mv.visitCode();
@@ -756,48 +763,50 @@ public class FunctionCodegen extends ParentCodegenAware {
 
     public void genDelegate(
             FunctionDescriptor functionDescriptor,
-            ClassDescriptor toClass,
-            StackValue field,
-            JvmMethodSignature jvmDelegateMethodSignature,
-            JvmMethodSignature jvmOverriddenMethodSignature
+            final ClassDescriptor toClass,
+            final StackValue field,
+            final JvmMethodSignature jvmDelegateMethodSignature,
+            final JvmMethodSignature jvmOverriddenMethodSignature
     ) {
-        Method overriddenMethod = jvmOverriddenMethodSignature.getAsmMethod();
-        Method delegateMethod = jvmDelegateMethodSignature.getAsmMethod();
+        generateMethod(OtherOrigin(functionDescriptor),
+                       jvmDelegateMethodSignature,
+                       functionDescriptor,
+                       new FunctionGenerationStrategy() {
+                           @Override
+                           public void generateBody(
+                                   @NotNull MethodVisitor mv,
+                                   @NotNull JvmMethodSignature signature,
+                                   @NotNull MethodContext context,
+                                   @NotNull MemberCodegen<?> parentCodegen
+                           ) {
+                               Method overriddenMethod = jvmOverriddenMethodSignature.getAsmMethod();
+                               Method delegateMethod = jvmDelegateMethodSignature.getAsmMethod();
 
-        int flags = ACC_PUBLIC;
+                               Type[] argTypes = delegateMethod.getArgumentTypes();
+                               Type[] originalArgTypes = overriddenMethod.getArgumentTypes();
 
-        MethodVisitor mv = v.newMethod(null, flags, delegateMethod.getName(), delegateMethod.getDescriptor(), null,
-                                       getThrownExceptions(functionDescriptor, typeMapper));
-        if (state.getClassBuilderMode() != ClassBuilderMode.FULL) return;
+                               InstructionAdapter iv = new InstructionAdapter(mv);
+                               iv.load(0, OBJECT_TYPE);
+                               field.put(field.type, iv);
+                               for (int i = 0, reg = 1; i < argTypes.length; i++) {
+                                   StackValue.local(reg, argTypes[i]).put(originalArgTypes[i], iv);
+                                   //noinspection AssignmentToForLoopParameter
+                                   reg += argTypes[i].getSize();
+                               }
 
-        mv.visitCode();
+                               String internalName = typeMapper.mapType(toClass).getInternalName();
+                               if (toClass.getKind() == ClassKind.TRAIT) {
+                                   iv.invokeinterface(internalName, overriddenMethod.getName(), overriddenMethod.getDescriptor());
+                               }
+                               else {
+                                   iv.invokevirtual(internalName, overriddenMethod.getName(), overriddenMethod.getDescriptor());
+                               }
 
-        Type[] argTypes = delegateMethod.getArgumentTypes();
-        Type[] originalArgTypes = overriddenMethod.getArgumentTypes();
+                               StackValue.onStack(overriddenMethod.getReturnType()).put(delegateMethod.getReturnType(), iv);
 
-        InstructionAdapter iv = new InstructionAdapter(mv);
-        iv.load(0, OBJECT_TYPE);
-        field.put(field.type, iv);
-        for (int i = 0, reg = 1; i < argTypes.length; i++) {
-            StackValue.local(reg, argTypes[i]).put(originalArgTypes[i], iv);
-            //noinspection AssignmentToForLoopParameter
-            reg += argTypes[i].getSize();
-        }
-
-        String internalName = typeMapper.mapType(toClass).getInternalName();
-        if (toClass.getKind() == ClassKind.TRAIT) {
-            iv.invokeinterface(internalName, overriddenMethod.getName(), overriddenMethod.getDescriptor());
-        }
-        else {
-            iv.invokevirtual(internalName, overriddenMethod.getName(), overriddenMethod.getDescriptor());
-        }
-
-        StackValue.onStack(overriddenMethod.getReturnType()).put(delegateMethod.getReturnType(), iv);
-
-        iv.areturn(delegateMethod.getReturnType());
-        endVisit(mv, "Delegate method " + functionDescriptor + " to " + jvmOverriddenMethodSignature,
-                 descriptorToDeclaration(bindingContext, functionDescriptor.getContainingDeclaration()));
-
-        generateBridges(functionDescriptor);
+                               iv.areturn(delegateMethod.getReturnType());
+                           }
+                       }
+        );
     }
 }

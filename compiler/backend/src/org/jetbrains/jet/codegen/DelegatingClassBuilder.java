@@ -19,6 +19,7 @@ package org.jetbrains.jet.codegen;
 import com.intellij.psi.PsiElement;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.jet.lang.resolve.java.diagnostics.JvmDeclarationOrigin;
 import org.jetbrains.org.objectweb.asm.AnnotationVisitor;
 import org.jetbrains.org.objectweb.asm.ClassVisitor;
 import org.jetbrains.org.objectweb.asm.FieldVisitor;
@@ -31,7 +32,7 @@ public abstract class DelegatingClassBuilder implements ClassBuilder {
     @NotNull
     @Override
     public FieldVisitor newField(
-            @Nullable PsiElement origin,
+            @NotNull JvmDeclarationOrigin origin,
             int access,
             @NotNull String name,
             @NotNull String desc,
@@ -44,7 +45,7 @@ public abstract class DelegatingClassBuilder implements ClassBuilder {
     @NotNull
     @Override
     public MethodVisitor newMethod(
-            @Nullable PsiElement origin,
+            @NotNull JvmDeclarationOrigin origin,
             int access,
             @NotNull String name,
             @NotNull String desc,

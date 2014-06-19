@@ -50,6 +50,9 @@ import java.util.List;
 
 import static org.jetbrains.jet.codegen.AsmUtil.boxType;
 import static org.jetbrains.jet.codegen.AsmUtil.isPrimitive;
+import static org.jetbrains.jet.lang.resolve.java.diagnostics.DiagnosticsPackage.OtherOrigin;
+import static org.jetbrains.jet.lang.resolve.java.diagnostics.DiagnosticsPackage.TraitImpl;
+import static org.jetbrains.jet.lang.resolve.java.diagnostics.JvmDeclarationOrigin.NO_ORIGIN;
 import static org.jetbrains.jet.lang.descriptors.CallableMemberDescriptor.Kind.SYNTHESIZED;
 import static org.jetbrains.jet.lang.resolve.BindingContext.VARIABLE;
 import static org.jetbrains.jet.lang.resolve.java.AsmTypeConstants.*;
@@ -162,13 +165,13 @@ public abstract class MemberCodegen<T extends JetElement/* TODO: & JetDeclaratio
         }
 
         Type classType = state.getTypeMapper().mapClass(descriptor);
-        ClassBuilder classBuilder = state.getFactory().newVisitor(classType, aClass.getContainingFile());
+        ClassBuilder classBuilder = state.getFactory().newVisitor(OtherOrigin(aClass, descriptor), classType, aClass.getContainingFile());
         ClassContext classContext = parentContext.intoClass(descriptor, OwnerKind.IMPLEMENTATION, state);
         new ImplementationBodyCodegen(aClass, classContext, classBuilder, state, parentCodegen).generate();
 
         if (aClass instanceof JetClass && ((JetClass) aClass).isTrait()) {
             Type traitImplType = state.getTypeMapper().mapTraitImpl(descriptor);
-            ClassBuilder traitImplBuilder = state.getFactory().newVisitor(traitImplType, aClass.getContainingFile());
+            ClassBuilder traitImplBuilder = state.getFactory().newVisitor(TraitImpl(aClass, descriptor), traitImplType, aClass.getContainingFile());
             ClassContext traitImplContext = parentContext.intoClass(descriptor, OwnerKind.TRAIT_IMPL, state);
             new TraitImplBodyCodegen(aClass, traitImplContext, traitImplBuilder, state, parentCodegen).generate();
         }
@@ -199,7 +202,7 @@ public abstract class MemberCodegen<T extends JetElement/* TODO: & JetDeclaratio
         assert state.getClassBuilderMode() == ClassBuilderMode.FULL
                 : "<clinit> should not be generated for light classes. Descriptor: " + descriptor;
         if (clInit == null) {
-            MethodVisitor mv = v.newMethod(null, ACC_STATIC, "<clinit>", "()V", null, null);
+            MethodVisitor mv = v.newMethod(OtherOrigin(descriptor), ACC_STATIC, "<clinit>", "()V", null, null);
             mv.visitCode();
             SimpleFunctionDescriptorImpl clInit =
                     SimpleFunctionDescriptorImpl.create(descriptor, Annotations.EMPTY, Name.special("<clinit>"), SYNTHESIZED);
@@ -256,7 +259,9 @@ public abstract class MemberCodegen<T extends JetElement/* TODO: & JetDeclaratio
         assert propertyDescriptor != null;
 
         CompileTimeConstant<?> compileTimeValue = propertyDescriptor.getCompileTimeInitializer();
-        if (compileTimeValue == null) return true;
+        // we must write constant values for fields in light classes,
+        // because Java's completion for annotation arguments uses this information
+        if (compileTimeValue == null) return state.getClassBuilderMode() != ClassBuilderMode.LIGHT_CLASSES;
 
         //TODO: OPTIMIZATION: don't initialize static final fields
 
@@ -326,8 +331,10 @@ public abstract class MemberCodegen<T extends JetElement/* TODO: & JetDeclaratio
         }
         if (delegatedProperties.isEmpty()) return;
 
-        v.newField(null, ACC_PRIVATE | ACC_STATIC | ACC_FINAL | ACC_SYNTHETIC, JvmAbi.PROPERTY_METADATA_ARRAY_NAME,
+        v.newField(NO_ORIGIN, ACC_PRIVATE | ACC_STATIC | ACC_FINAL | ACC_SYNTHETIC, JvmAbi.PROPERTY_METADATA_ARRAY_NAME,
                    "[" + PROPERTY_METADATA_TYPE, null, null);
+
+        if (state.getClassBuilderMode() == ClassBuilderMode.LIGHT_CLASSES) return;
 
         InstructionAdapter iv = createOrGetClInitCodegen().v;
         iv.iconst(delegatedProperties.size());

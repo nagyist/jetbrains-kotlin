@@ -23,6 +23,7 @@ import org.jetbrains.jet.codegen.context.MethodContext;
 import org.jetbrains.jet.codegen.context.ScriptContext;
 import org.jetbrains.jet.codegen.state.GenerationState;
 import org.jetbrains.jet.lang.descriptors.ClassDescriptor;
+import org.jetbrains.jet.lang.descriptors.PropertyDescriptor;
 import org.jetbrains.jet.lang.descriptors.ScriptDescriptor;
 import org.jetbrains.jet.lang.descriptors.ValueParameterDescriptor;
 import org.jetbrains.jet.lang.psi.JetDeclaration;
@@ -36,6 +37,8 @@ import org.jetbrains.org.objectweb.asm.commons.InstructionAdapter;
 import java.util.Collections;
 import java.util.List;
 
+import static org.jetbrains.jet.lang.resolve.java.diagnostics.DiagnosticsPackage.OtherOrigin;
+import static org.jetbrains.jet.lang.resolve.java.diagnostics.JvmDeclarationOrigin.NO_ORIGIN;
 import static org.jetbrains.jet.codegen.binding.CodegenBinding.*;
 import static org.jetbrains.jet.lang.resolve.java.AsmTypeConstants.OBJECT_TYPE;
 import static org.jetbrains.org.objectweb.asm.Opcodes.*;
@@ -57,7 +60,8 @@ public class ScriptCodegen extends MemberCodegen<JetScript> {
         Type className = state.getBindingContext().get(ASM_TYPE, classDescriptorForScript);
         assert className != null;
 
-        ClassBuilder builder = state.getFactory().newVisitor(className, declaration.getContainingFile());
+        ClassBuilder builder = state.getFactory().newVisitor(OtherOrigin(declaration, classDescriptorForScript),
+                                                             className, declaration.getContainingFile());
         List<ScriptDescriptor> earlierScripts = state.getEarlierScriptsForReplInterpreter();
         ScriptContext scriptContext = parentContext.intoScript(
                 scriptDescriptor,
@@ -118,13 +122,16 @@ public class ScriptCodegen extends MemberCodegen<JetScript> {
     ) {
         Type blockType = typeMapper.mapType(scriptDescriptor.getScriptCodeDescriptor().getReturnType());
 
-        classBuilder.newField(null, ACC_PUBLIC | ACC_FINAL, ScriptDescriptor.LAST_EXPRESSION_VALUE_FIELD_NAME,
+        PropertyDescriptor scriptResultProperty = scriptDescriptor.getScriptResultProperty();
+        classBuilder.newField(OtherOrigin(scriptResultProperty),
+                              ACC_PUBLIC | ACC_FINAL, scriptResultProperty.getName().asString(),
                               blockType.getDescriptor(), null, null);
 
         JvmMethodSignature jvmSignature = typeMapper.mapScriptSignature(scriptDescriptor, context.getEarlierScripts());
 
         MethodVisitor mv = classBuilder.newMethod(
-                scriptDeclaration, ACC_PUBLIC, jvmSignature.getAsmMethod().getName(), jvmSignature.getAsmMethod().getDescriptor(),
+                OtherOrigin(scriptDeclaration, scriptDescriptor.getClassDescriptor().getUnsubstitutedPrimaryConstructor()),
+                ACC_PUBLIC, jvmSignature.getAsmMethod().getName(), jvmSignature.getAsmMethod().getDescriptor(),
                 null, null);
 
         mv.visitCode();
@@ -195,13 +202,13 @@ public class ScriptCodegen extends MemberCodegen<JetScript> {
         for (ScriptDescriptor earlierScript : context.getEarlierScripts()) {
             Type earlierClassName = asmTypeForScriptDescriptor(bindingContext, earlierScript);
             int access = ACC_PRIVATE | ACC_FINAL;
-            classBuilder.newField(null, access, context.getScriptFieldName(earlierScript), earlierClassName.getDescriptor(), null, null);
+            classBuilder.newField(NO_ORIGIN, access, context.getScriptFieldName(earlierScript), earlierClassName.getDescriptor(), null, null);
         }
 
         for (ValueParameterDescriptor parameter : script.getScriptCodeDescriptor().getValueParameters()) {
             Type parameterType = typeMapper.mapType(parameter);
             int access = ACC_PUBLIC | ACC_FINAL;
-            classBuilder.newField(null, access, parameter.getName().getIdentifier(), parameterType.getDescriptor(), null, null);
+            classBuilder.newField(OtherOrigin(parameter), access, parameter.getName().getIdentifier(), parameterType.getDescriptor(), null, null);
         }
     }
 

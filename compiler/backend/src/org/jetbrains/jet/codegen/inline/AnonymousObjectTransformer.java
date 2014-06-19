@@ -21,10 +21,7 @@ import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.util.ArrayUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.jet.OutputFile;
-import org.jetbrains.jet.codegen.AsmUtil;
-import org.jetbrains.jet.codegen.ClassBuilder;
-import org.jetbrains.jet.codegen.FieldInfo;
-import org.jetbrains.jet.codegen.StackValue;
+import org.jetbrains.jet.codegen.*;
 import org.jetbrains.jet.codegen.state.GenerationState;
 import org.jetbrains.jet.codegen.state.JetTypeMapper;
 import org.jetbrains.org.objectweb.asm.*;
@@ -36,6 +33,8 @@ import org.jetbrains.org.objectweb.asm.tree.VarInsnNode;
 
 import java.io.IOException;
 import java.util.*;
+
+import static org.jetbrains.jet.lang.resolve.java.diagnostics.JvmDeclarationOrigin.NO_ORIGIN;
 
 public class AnonymousObjectTransformer {
 
@@ -232,7 +231,7 @@ public class AnonymousObjectTransformer {
 
         String constructorDescriptor = Type.getMethodDescriptor(Type.VOID_TYPE, descTypes.toArray(new Type[descTypes.size()]));
 
-        MethodVisitor constructorVisitor = classBuilder.newMethod(null,
+        MethodVisitor constructorVisitor = classBuilder.newMethod(NO_ORIGIN,
                                                                   AsmUtil.NO_FLAG_PACKAGE_PRIVATE,
                                                                   "<init>", constructorDescriptor,
                                                                   null, ArrayUtil.EMPTY_STRING_ARRAY);
@@ -297,14 +296,14 @@ public class AnonymousObjectTransformer {
 
     @NotNull
     private ClassBuilder createClassBuilder() {
-        ClassBuilder classBuilder = state.getFactory().newVisitor(newLambdaType, inliningContext.getRoot().callElement.getContainingFile());
+        ClassBuilder classBuilder = state.getFactory().newVisitor(NO_ORIGIN, newLambdaType, inliningContext.getRoot().callElement.getContainingFile());
         return new RemappingClassBuilder(classBuilder, new TypeRemapper(inliningContext.typeMapping));
     }
 
     @NotNull
     private static MethodVisitor newMethod(@NotNull ClassBuilder builder, @NotNull MethodNode original) {
         return builder.newMethod(
-                null,
+                NO_ORIGIN,
                 original.access,
                 original.name,
                 original.desc,

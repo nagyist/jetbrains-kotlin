@@ -248,7 +248,8 @@ public class ReplInterpreter {
 
         BindingContext bindingContext = AnalyzeExhaust.success(trace.getBindingContext(), module).getBindingContext();
         GenerationState generationState = new GenerationState(psiFile.getProject(), ClassBuilderFactories.BINARIES,
-                                                              module, bindingContext, Collections.singletonList(psiFile));
+                                                              module, bindingContext, Collections.singletonList(psiFile)
+        );
 
         compileScript(psiFile.getScript(), scriptClassType, earlierScripts, generationState,
                       CompilationErrorHandler.THROW_EXCEPTION);
@@ -318,7 +319,7 @@ public class ReplInterpreter {
         injector.getTopDownAnalyzer().doProcess(topDownAnalysisContext,
                                                 scope, new PackageLikeBuilderDummy(), Collections.singletonList(psiFile));
 
-        boolean hasErrors = AnalyzerWithCompilerReport.reportDiagnostics(trace.getBindingContext(), messageCollector);
+        boolean hasErrors = AnalyzerWithCompilerReport.reportDiagnostics(trace.getBindingContext().getDiagnostics(), messageCollector);
         if (hasErrors) {
             return null;
         }

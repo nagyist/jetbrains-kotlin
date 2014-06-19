@@ -20,6 +20,7 @@ import com.google.common.collect.ImmutableSet;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiNameIdentifierOwner;
 import com.intellij.psi.impl.source.tree.LeafPsiElement;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.jet.lang.descriptors.*;
 import org.jetbrains.jet.lang.psi.*;
 import org.jetbrains.jet.lang.resolve.calls.inference.InferenceErrorData;
@@ -203,6 +204,8 @@ public interface Errors {
     DiagnosticFactory0<JetNamedDeclaration> PUBLIC_MEMBER_SHOULD_SPECIFY_TYPE = DiagnosticFactory0.create(ERROR, NAMED_ELEMENT);
 
     DiagnosticFactory2<JetDeclaration, CallableMemberDescriptor, String> CONFLICTING_OVERLOADS = DiagnosticFactory2.create(ERROR, DECLARATION);
+
+    DiagnosticFactory1<JetAnnotationEntry, String> ILLEGAL_PLATFORM_NAME = DiagnosticFactory1.create(ERROR);
 
     DiagnosticFactory0<JetNamedDeclaration> NON_FINAL_MEMBER_IN_FINAL_CLASS = DiagnosticFactory0.create(WARNING, modifierSetPosition(
             JetTokens.OPEN_KEYWORD));
@@ -609,7 +612,11 @@ public interface Errors {
 
     class Initializer {
         static {
-            for (Field field : Errors.class.getFields()) {
+            initializeFactoryNames(Errors.class);
+        }
+
+        public static void initializeFactoryNames(@NotNull Class<?> aClass) {
+            for (Field field : aClass.getFields()) {
                 if (Modifier.isStatic(field.getModifiers())) {
                     try {
                         Object value = field.get(null);

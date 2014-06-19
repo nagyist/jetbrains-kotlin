@@ -62,6 +62,7 @@ import java.util.*;
 import static org.jetbrains.jet.codegen.AsmUtil.asmDescByFqNameWithoutInnerClasses;
 import static org.jetbrains.jet.descriptors.serialization.NameSerializationUtil.createNameResolver;
 import static org.jetbrains.jet.lang.resolve.java.PackageClassUtils.getPackageClassFqName;
+import static org.jetbrains.jet.lang.resolve.java.diagnostics.DiagnosticsPackage.*;
 import static org.jetbrains.org.objectweb.asm.Opcodes.*;
 
 public class PackageCodegen {
@@ -89,7 +90,9 @@ public class PackageCodegen {
 
                 String className = AsmUtil.internalNameByFqNameWithoutInnerClasses(getPackageClassFqName(fqName));
                 ClassBuilder v = PackageCodegen.this.state.getFactory()
-                        .newVisitor(Type.getObjectType(className), PackagePartClassUtils.getPackageFilesWithCallables(files));
+                        .newVisitor(
+                                PackageFacade(packageFragment == null ? compiledPackageFragment : packageFragment),
+                                Type.getObjectType(className), PackagePartClassUtils.getPackageFilesWithCallables(files));
                 v.defineClass(sourceFile, V1_6,
                               ACC_PUBLIC | ACC_FINAL,
                               className,
@@ -162,7 +165,7 @@ public class PackageCodegen {
                     if (member instanceof DeserializedSimpleFunctionDescriptor) {
                         DeserializedSimpleFunctionDescriptor function = (DeserializedSimpleFunctionDescriptor) member;
                         JvmMethodSignature signature = state.getTypeMapper().mapSignature(function, OwnerKind.PACKAGE);
-                        memberCodegen.functionCodegen.generateMethod(null, signature, function,
+                        memberCodegen.functionCodegen.generateMethod(OtherOrigin(function), signature, function,
                                                                      new FunctionGenerationStrategy() {
                                                                          @Override
                                                                          public void generateBody(
@@ -279,7 +282,7 @@ public class PackageCodegen {
 
         if (!generatePackagePart) return null;
 
-        ClassBuilder builder = state.getFactory().newVisitor(packagePartType, file);
+        ClassBuilder builder = state.getFactory().newVisitor(PackagePart(file, packageFragment), packagePartType, file);
 
         new PackagePartCodegen(builder, file, packagePartType, packagePartContext, state).generate();
 

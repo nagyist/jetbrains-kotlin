@@ -20,13 +20,16 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.jet.lang.cfg.pseudocode.PseudoValue;
 import org.jetbrains.jet.lang.cfg.pseudocode.Pseudocode;
-import org.jetbrains.jet.lang.descriptors.ReceiverParameterDescriptor;
-import org.jetbrains.jet.lang.descriptors.VariableDescriptor;
+import org.jetbrains.jet.lang.cfg.pseudocode.TypePredicate;
+import org.jetbrains.jet.lang.cfg.pseudocode.instructions.eval.*;
+import org.jetbrains.jet.lang.descriptors.ValueParameterDescriptor;
 import org.jetbrains.jet.lang.psi.*;
 import org.jetbrains.jet.lang.resolve.calls.model.ResolvedCall;
 import org.jetbrains.jet.lang.resolve.constants.CompileTimeConstant;
+import org.jetbrains.jet.lang.resolve.scopes.receivers.ReceiverValue;
 
 import java.util.List;
+import java.util.Map;
 
 public interface JetControlFlowBuilder {
     // Subroutines
@@ -99,31 +102,45 @@ public interface JetControlFlowBuilder {
     void loadUnit(@NotNull JetExpression expression);
 
     @NotNull
-    PseudoValue loadConstant(@NotNull JetExpression expression, @Nullable CompileTimeConstant<?> constant);
+    InstructionWithValue loadConstant(@NotNull JetExpression expression, @Nullable CompileTimeConstant<?> constant);
     @NotNull
-    PseudoValue createAnonymousObject(@NotNull JetObjectLiteralExpression expression);
+    InstructionWithValue createAnonymousObject(@NotNull JetObjectLiteralExpression expression);
     @NotNull
-    PseudoValue createFunctionLiteral(@NotNull JetFunctionLiteralExpression expression);
+    InstructionWithValue createFunctionLiteral(@NotNull JetFunctionLiteralExpression expression);
     @NotNull
-    PseudoValue loadStringTemplate(@NotNull JetStringTemplateExpression expression, @NotNull List<PseudoValue> inputValues);
+    InstructionWithValue loadStringTemplate(@NotNull JetStringTemplateExpression expression, @NotNull List<PseudoValue> inputValues);
 
     @NotNull
-    PseudoValue magic(
+    MagicInstruction magic(
             @NotNull JetElement instructionElement,
             @Nullable JetElement valueElement,
             @NotNull List<PseudoValue> inputValues,
+            @NotNull Map<PseudoValue, TypePredicate> expectedTypes,
             boolean synthetic
     );
 
     @NotNull
-    PseudoValue readThis(@NotNull JetExpression expression, @Nullable ReceiverParameterDescriptor parameterDescriptor);
-    @NotNull
-    PseudoValue readVariable(
-            @NotNull JetExpression expression, @Nullable VariableDescriptor variableDescriptor, @Nullable PseudoValue receiverValue
+    MergeInstruction merge(
+            @NotNull JetExpression expression,
+            @NotNull List<PseudoValue> inputValues
     );
 
-    @Nullable
-    PseudoValue call(@NotNull JetExpression expression, @NotNull ResolvedCall<?> resolvedCall, @NotNull List<PseudoValue> inputValues);
+    @NotNull
+    ReadValueInstruction readVariable(
+            @NotNull JetElement instructionElement,
+            @NotNull JetExpression valueElement,
+            @NotNull ResolvedCall<?> resolvedCall,
+            @NotNull Map<PseudoValue, ReceiverValue> receiverValues
+    );
+
+    @NotNull
+    CallInstruction call(
+            @NotNull JetElement instructionElement,
+            @Nullable JetExpression valueElement,
+            @NotNull ResolvedCall<?> resolvedCall,
+            @NotNull Map<PseudoValue, ReceiverValue> receiverValues,
+            @NotNull Map<PseudoValue, ValueParameterDescriptor> arguments
+    );
 
     enum PredefinedOperation {
         AND,
@@ -131,7 +148,7 @@ public interface JetControlFlowBuilder {
         NOT_NULL_ASSERTION
     }
     @NotNull
-    PseudoValue predefinedOperation(
+    OperationInstruction predefinedOperation(
             @NotNull JetExpression expression,
             @NotNull PredefinedOperation operation,
             @NotNull List<PseudoValue> inputValues
@@ -139,7 +156,12 @@ public interface JetControlFlowBuilder {
 
     void compilationError(@NotNull JetElement element, @NotNull String message);
 
-    void write(@NotNull JetElement assignment, @NotNull JetElement lValue, @NotNull PseudoValue rValue, @Nullable PseudoValue receiverValue);
+    void write(
+            @NotNull JetElement assignment,
+            @NotNull JetElement lValue,
+            @NotNull PseudoValue rValue,
+            @NotNull AccessTarget target,
+            @NotNull Map<PseudoValue, ReceiverValue> receiverValues);
     
     // Other
     void unsupported(JetElement element);

@@ -42,6 +42,7 @@ import com.intellij.util.containers.Stack;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.jet.codegen.CompilationErrorHandler;
+import org.jetbrains.jet.codegen.KotlinCodegenFacade;
 import org.jetbrains.jet.codegen.PackageCodegen;
 import org.jetbrains.jet.codegen.binding.CodegenBinding;
 import org.jetbrains.jet.codegen.state.GenerationState;
@@ -49,15 +50,18 @@ import org.jetbrains.jet.codegen.state.Progress;
 import org.jetbrains.jet.lang.descriptors.ClassDescriptor;
 import org.jetbrains.jet.lang.psi.JetClassOrObject;
 import org.jetbrains.jet.lang.psi.JetFile;
+import org.jetbrains.jet.lang.psi.JetPsiUtil;
 import org.jetbrains.jet.lang.resolve.BindingContext;
 import org.jetbrains.jet.lang.resolve.BindingContextUtils;
+import org.jetbrains.jet.lang.resolve.BindingTraceContext;
+import org.jetbrains.jet.lang.resolve.Diagnostics;
 import org.jetbrains.jet.lang.resolve.name.FqName;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 
-public class KotlinJavaFileStubProvider<T extends WithFileStub> implements CachedValueProvider<T> {
+public class KotlinJavaFileStubProvider<T extends WithFileStubAndExtraDiagnostics> implements CachedValueProvider<T> {
 
     @NotNull
     public static KotlinJavaFileStubProvider<KotlinPackageLightClassData> createForPackageClass(
@@ -85,8 +89,12 @@ public class KotlinJavaFileStubProvider<T extends WithFileStub> implements Cache
 
                     @NotNull
                     @Override
-                    public KotlinPackageLightClassData createLightClassData(PsiJavaFileStub javaFileStub, BindingContext bindingContext) {
-                        return new KotlinPackageLightClassData(javaFileStub);
+                    public KotlinPackageLightClassData createLightClassData(
+                            PsiJavaFileStub javaFileStub,
+                            BindingContext bindingContext,
+                            Diagnostics extraDiagnostics
+                    ) {
+                        return new KotlinPackageLightClassData(javaFileStub, extraDiagnostics);
                     }
 
                     @NotNull
@@ -97,7 +105,14 @@ public class KotlinJavaFileStubProvider<T extends WithFileStub> implements Cache
 
                     @Override
                     public GenerationState.GenerateClassFilter getGenerateClassFilter() {
-                        return GenerationState.GenerateClassFilter.ONLY_PACKAGE_CLASS;
+                        return new GenerationState.GenerateClassFilter() {
+                            @Override
+                            public boolean shouldProcess(JetClassOrObject classOrObject) {
+                                // Top-level classes and such should not be generated for performance reasons.
+                                // Local classes in top-level functions must still be generated
+                                return JetPsiUtil.isLocal(classOrObject);
+                            }
+                        };
                     }
 
                     @Override
@@ -133,11 +148,15 @@ public class KotlinJavaFileStubProvider<T extends WithFileStub> implements Cache
 
                     @NotNull
                     @Override
-                    public OutermostKotlinClassLightClassData createLightClassData(PsiJavaFileStub javaFileStub, BindingContext bindingContext) {
+                    public OutermostKotlinClassLightClassData createLightClassData(
+                            PsiJavaFileStub javaFileStub,
+                            BindingContext bindingContext,
+                            Diagnostics extraDiagnostics
+                    ) {
                         ClassDescriptor classDescriptor = bindingContext.get(BindingContext.CLASS, classOrObject);
                         if (classDescriptor == null) {
                             return new OutermostKotlinClassLightClassData(
-                                    javaFileStub,
+                                    javaFileStub, extraDiagnostics,
                                     "", classOrObject, null, Collections.<JetClassOrObject, InnerKotlinClassLightClassData>emptyMap()
                             );
                         }
@@ -163,6 +182,7 @@ public class KotlinJavaFileStubProvider<T extends WithFileStub> implements Cache
 
                         return new OutermostKotlinClassLightClassData(
                                 javaFileStub,
+                                extraDiagnostics,
                                 jvmInternalName,
                                 classOrObject,
                                 classDescriptor,
@@ -263,6 +283,7 @@ public class KotlinJavaFileStubProvider<T extends WithFileStub> implements Cache
 
         PsiJavaFileStub javaFileStub = createJavaFileStub(packageFqName, getRepresentativeVirtualFile(files));
         BindingContext bindingContext;
+        BindingTraceContext forExtraDiagnostics = new BindingTraceContext();
         try {
             Stack<StubElement> stubStack = new Stack<StubElement>();
             stubStack.push(javaFileStub);
@@ -278,8 +299,10 @@ public class KotlinJavaFileStubProvider<T extends WithFileStub> implements Cache
                     /*generateClassFilter=*/stubGenerationStrategy.getGenerateClassFilter(),
                     /*to generate inline flag on methods*/true,
                     null,
-                    null);
-            state.beforeCompile();
+                    null,
+                    forExtraDiagnostics
+            );
+            KotlinCodegenFacade.prepareForCompilation(state);
 
             bindingContext = state.getBindingContext();
 
@@ -289,7 +312,6 @@ public class KotlinJavaFileStubProvider<T extends WithFileStub> implements Cache
             if (pop != javaFileStub) {
                 LOG.error("Unbalanced stack operations: " + pop);
             }
-
         }
         catch (ProcessCanceledException e) {
             throw e;
@@ -299,8 +321,9 @@ public class KotlinJavaFileStubProvider<T extends WithFileStub> implements Cache
             throw e;
         }
 
+        Diagnostics extraDiagnostics = forExtraDiagnostics.getBindingContext().getDiagnostics();
         return Result.create(
-                stubGenerationStrategy.createLightClassData(javaFileStub, bindingContext),
+                stubGenerationStrategy.createLightClassData(javaFileStub, bindingContext, extraDiagnostics),
                 local ? PsiModificationTracker.MODIFICATION_COUNT : PsiModificationTracker.OUT_OF_CODE_BLOCK_MODIFICATION_COUNT
         );
     }
@@ -359,12 +382,12 @@ public class KotlinJavaFileStubProvider<T extends WithFileStub> implements Cache
                 cause);
     }
 
-    private interface StubGenerationStrategy<T extends WithFileStub> {
+    private interface StubGenerationStrategy<T extends WithFileStubAndExtraDiagnostics> {
         @NotNull Collection<JetFile> getFiles();
         @NotNull FqName getPackageFqName();
 
         @NotNull LightClassConstructionContext getContext(@NotNull Collection<JetFile> files);
-        @NotNull T createLightClassData(PsiJavaFileStub javaFileStub, BindingContext bindingContext);
+        @NotNull T createLightClassData(PsiJavaFileStub javaFileStub, BindingContext bindingContext, Diagnostics extraDiagnostics);
 
         GenerationState.GenerateClassFilter getGenerateClassFilter();
         void generate(@NotNull GenerationState state, @NotNull Collection<JetFile> files);

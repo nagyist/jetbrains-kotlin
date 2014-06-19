@@ -44,6 +44,7 @@ import org.jetbrains.org.objectweb.asm.commons.InstructionAdapter;
 import org.jetbrains.org.objectweb.asm.commons.Method;
 
 import static org.jetbrains.jet.codegen.AsmUtil.*;
+import static org.jetbrains.jet.lang.resolve.java.diagnostics.DiagnosticsPackage.OtherOrigin;
 import static org.jetbrains.jet.codegen.JvmCodegenUtil.getParentBodyCodegen;
 import static org.jetbrains.jet.codegen.JvmCodegenUtil.isInterface;
 import static org.jetbrains.jet.codegen.JvmSerializationBindings.*;
@@ -129,7 +130,7 @@ public class PropertyCodegen {
         Type type = typeMapper.mapType(descriptor);
         String name = p.getName();
         assert name != null : "Annotation parameter has no name: " + p.getText();
-        MethodVisitor visitor = v.newMethod(p, ACC_PUBLIC | ACC_ABSTRACT, name, "()" + type.getDescriptor(), null, null);
+        MethodVisitor visitor = v.newMethod(OtherOrigin(p, descriptor), ACC_PUBLIC | ACC_ABSTRACT, name, "()" + type.getDescriptor(), null, null);
         JetExpression defaultValue = p.getDefaultValue();
         if (defaultValue != null) {
             CompileTimeConstant<?> constant = ExpressionCodegen.getCompileTimeConstant(defaultValue, bindingContext);
@@ -170,7 +171,7 @@ public class PropertyCodegen {
 
         if (!isTrait(context.getContextDescriptor()) || kind == OwnerKind.TRAIT_IMPL) {
             int flags = ACC_DEPRECATED | ACC_FINAL | ACC_PRIVATE | ACC_STATIC | ACC_SYNTHETIC;
-            MethodVisitor mv = v.newMethod(null, flags, name, desc, null, null);
+            MethodVisitor mv = v.newMethod(OtherOrigin(descriptor), flags, name, desc, null, null);
             AnnotationCodegen.forMethod(mv, typeMapper).genAnnotations(descriptor);
             mv.visitCode();
             mv.visitInsn(Opcodes.RETURN);
@@ -229,7 +230,7 @@ public class PropertyCodegen {
 
         v.getSerializationBindings().put(FIELD_FOR_PROPERTY, propertyDescriptor, Pair.create(type, name));
 
-        return builder.newField(element, modifiers, name, type.getDescriptor(),
+        return builder.newField(OtherOrigin(element, propertyDescriptor), modifiers, name, type.getDescriptor(),
                                 typeMapper.mapFieldSignature(jetType), defaultValue);
     }
 
@@ -302,7 +303,7 @@ public class PropertyCodegen {
         }
 
         JvmMethodSignature signature = typeMapper.mapSignature(accessorDescriptor, kind);
-        functionCodegen.generateMethod(accessor != null ? accessor : p, signature, accessorDescriptor, strategy);
+        functionCodegen.generateMethod(OtherOrigin(accessor != null ? accessor : p, accessorDescriptor), signature, accessorDescriptor, strategy);
     }
 
     private static int indexOfDelegatedProperty(@NotNull JetProperty property) {

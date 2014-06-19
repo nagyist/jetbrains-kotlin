@@ -20,13 +20,16 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.jet.lang.cfg.pseudocode.PseudoValue;
 import org.jetbrains.jet.lang.cfg.pseudocode.Pseudocode;
-import org.jetbrains.jet.lang.descriptors.ReceiverParameterDescriptor;
-import org.jetbrains.jet.lang.descriptors.VariableDescriptor;
+import org.jetbrains.jet.lang.cfg.pseudocode.TypePredicate;
+import org.jetbrains.jet.lang.cfg.pseudocode.instructions.eval.*;
+import org.jetbrains.jet.lang.descriptors.ValueParameterDescriptor;
 import org.jetbrains.jet.lang.psi.*;
 import org.jetbrains.jet.lang.resolve.calls.model.ResolvedCall;
 import org.jetbrains.jet.lang.resolve.constants.CompileTimeConstant;
+import org.jetbrains.jet.lang.resolve.scopes.receivers.ReceiverValue;
 
 import java.util.List;
+import java.util.Map;
 
 public abstract class JetControlFlowBuilderAdapter implements JetControlFlowBuilder {
 
@@ -40,63 +43,71 @@ public abstract class JetControlFlowBuilderAdapter implements JetControlFlowBuil
 
     @NotNull
     @Override
-    public PseudoValue loadConstant(@NotNull JetExpression expression, @Nullable CompileTimeConstant<?> constant) {
+    public InstructionWithValue loadConstant(@NotNull JetExpression expression, @Nullable CompileTimeConstant<?> constant) {
         return getDelegateBuilder().loadConstant(expression, constant);
     }
 
     @NotNull
     @Override
-    public PseudoValue createAnonymousObject(@NotNull JetObjectLiteralExpression expression) {
+    public InstructionWithValue createAnonymousObject(@NotNull JetObjectLiteralExpression expression) {
         return getDelegateBuilder().createAnonymousObject(expression);
     }
 
     @NotNull
     @Override
-    public PseudoValue createFunctionLiteral(@NotNull JetFunctionLiteralExpression expression) {
+    public InstructionWithValue createFunctionLiteral(@NotNull JetFunctionLiteralExpression expression) {
         return getDelegateBuilder().createFunctionLiteral(expression);
     }
 
     @NotNull
     @Override
-    public PseudoValue loadStringTemplate(@NotNull JetStringTemplateExpression expression, @NotNull List<PseudoValue> inputValues) {
+    public InstructionWithValue loadStringTemplate(@NotNull JetStringTemplateExpression expression, @NotNull List<PseudoValue> inputValues) {
         return getDelegateBuilder().loadStringTemplate(expression, inputValues);
     }
 
     @NotNull
     @Override
-    public PseudoValue magic(
+    public MagicInstruction magic(
             @NotNull JetElement instructionElement,
             @Nullable JetElement valueElement,
             @NotNull List<PseudoValue> inputValues,
+            @NotNull Map<PseudoValue, TypePredicate> expectedTypes,
             boolean synthetic
     ) {
-        return getDelegateBuilder().magic(instructionElement, valueElement, inputValues, synthetic);
+        return getDelegateBuilder().magic(instructionElement, valueElement, inputValues, expectedTypes, synthetic);
     }
 
     @NotNull
     @Override
-    public PseudoValue readThis(@NotNull JetExpression expression, @Nullable ReceiverParameterDescriptor parameterDescriptor) {
-        return getDelegateBuilder().readThis(expression, parameterDescriptor);
+    public MergeInstruction merge(@NotNull JetExpression expression, @NotNull List<PseudoValue> inputValues) {
+        return getDelegateBuilder().merge(expression, inputValues);
     }
 
     @NotNull
     @Override
-    public PseudoValue readVariable(
-            @NotNull JetExpression expression,
-            @Nullable VariableDescriptor variableDescriptor,
-            @Nullable PseudoValue receiverValue) {
-        return getDelegateBuilder().readVariable(expression, variableDescriptor, receiverValue);
-    }
-
-    @Nullable
-    @Override
-    public PseudoValue call(@NotNull JetExpression expression, @NotNull ResolvedCall<?> resolvedCall, @NotNull List<PseudoValue> inputValues) {
-        return getDelegateBuilder().call(expression, resolvedCall, inputValues);
+    public ReadValueInstruction readVariable(
+            @NotNull JetElement instructionElement,
+            @NotNull JetExpression valueElement,
+            @NotNull ResolvedCall<?> resolvedCall,
+            @NotNull Map<PseudoValue, ReceiverValue> receiverValues) {
+        return getDelegateBuilder().readVariable(instructionElement, valueElement, resolvedCall, receiverValues);
     }
 
     @NotNull
     @Override
-    public PseudoValue predefinedOperation(
+    public CallInstruction call(
+            @NotNull JetElement instructionElement,
+            @Nullable JetExpression valueElement,
+            @NotNull ResolvedCall<?> resolvedCall,
+            @NotNull Map<PseudoValue, ReceiverValue> receiverValues,
+            @NotNull Map<PseudoValue, ValueParameterDescriptor> arguments
+    ) {
+        return getDelegateBuilder().call(instructionElement, valueElement, resolvedCall, receiverValues, arguments);
+    }
+
+    @NotNull
+    @Override
+    public OperationInstruction predefinedOperation(
             @NotNull JetExpression expression,
             @NotNull PredefinedOperation operation,
             @NotNull List<PseudoValue> inputValues
@@ -242,8 +253,9 @@ public abstract class JetControlFlowBuilderAdapter implements JetControlFlowBuil
             @NotNull JetElement assignment,
             @NotNull JetElement lValue,
             @NotNull PseudoValue rValue,
-            @Nullable PseudoValue receiverValue) {
-        getDelegateBuilder().write(assignment, lValue, rValue, receiverValue);
+            @NotNull AccessTarget target,
+            @NotNull Map<PseudoValue, ReceiverValue> receiverValues) {
+        getDelegateBuilder().write(assignment, lValue, rValue, target, receiverValues);
     }
 
     @Override
