@@ -140,7 +140,7 @@ public class InlineCallResolverExtension implements CallResolverExtension {
                 context.trace.report(Errors.USAGE_IS_NOT_INLINABLE.on(jetExpression, jetExpression, descriptor));
             } else {
                 if (!hasOnlyReturnAnnotation(varDescriptor) && hasOnlyReturnAnnotation(targetParameterDescriptor)) {
-                    context.trace.report(Errors.ONLY_LOCAL_RETURN.on(jetExpression, varDescriptor, descriptor));
+                    context.trace.report(Errors.ONLY_LOCAL_RETURN.on(jetExpression, jetExpression, varDescriptor, descriptor));
                 } else {
                     checkNonLocalReturn(varDescriptor, jetExpression, context);
                 }
@@ -263,7 +263,7 @@ public class InlineCallResolverExtension implements CallResolverExtension {
         if (hasOnlyReturnAnnotation(lambdaDescriptor)) return;
 
         if (!InlineDescriptorUtils.checkNonLocalReturnUsage(descriptor, expression, context.trace)) {
-            context.trace.report(Errors.ONLY_LOCAL_RETURN.on(expression, lambdaDescriptor, descriptor));
+            context.trace.report(Errors.ONLY_LOCAL_RETURN.on(expression, expression, lambdaDescriptor, descriptor));
         }
     }
 

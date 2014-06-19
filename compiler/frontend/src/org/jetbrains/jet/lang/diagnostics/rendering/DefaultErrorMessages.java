@@ -488,7 +488,7 @@ public class DefaultErrorMessages {
         MAP.put(NULLABLE_INLINE_PARAMETER, "Inline-parameter ''{0}'' of ''{1}'' must not be nullable. Annotate the parameter with [noinline] or make not nullable", ELEMENT_TEXT, SHORT_NAMES_IN_TYPES);
         MAP.put(RECURSION_IN_INLINE, "Inline-function ''{1}'' can't be recursive", ELEMENT_TEXT, SHORT_NAMES_IN_TYPES);
         //Inline non Locals
-        MAP.put(ONLY_LOCAL_RETURN, "This lambda usage can't support non-local returns. Please annotate lambda declaration ''{0}'' with ''inlineOptions(ONLY_LOCAL_RETURN)''", SHORT_NAMES_IN_TYPES, SHORT_NAMES_IN_TYPES);
+        MAP.put(ONLY_LOCAL_RETURN, "''{0}'' lambda usage could support only local returns. Please annotate lambda declaration ''{1}'' with ''inlineOptions(ONLY_LOCAL_RETURN)''", ELEMENT_TEXT, SHORT_NAMES_IN_TYPES, SHORT_NAMES_IN_TYPES);
 
         MAP.setImmutable();
 
