@@ -19,26 +19,19 @@ package org.jetbrains.jet.codegen.inline;
 import org.jetbrains.org.objectweb.asm.AnnotationVisitor;
 import org.jetbrains.org.objectweb.asm.Label;
 import org.jetbrains.org.objectweb.asm.MethodVisitor;
-import org.jetbrains.org.objectweb.asm.Opcodes;
 import org.jetbrains.org.objectweb.asm.commons.InstructionAdapter;
 import org.jetbrains.org.objectweb.asm.tree.FieldInsnNode;
 import org.jetbrains.jet.codegen.StackValue;
 
-public class RemapVisitor extends InstructionAdapter {
+public class RemapVisitor extends ReturnRemapper {
 
     private final Label end;
 
     private final LocalVarRemapper remapper;
 
-    private final boolean remapReturn;
-
     private final FieldRemapper nodeRemapper;
 
     private final InstructionAdapter instructionAdapter;
-
-    private final LabelOwner labelOwner;
-
-    private boolean skipReturnRemapping;
 
     protected RemapVisitor(
             MethodVisitor mv,
@@ -48,40 +41,11 @@ public class RemapVisitor extends InstructionAdapter {
             FieldRemapper nodeRemapper,
             LabelOwner labelOwner
     ) {
-        super(InlineCodegenUtil.API, mv);
-        this.labelOwner = labelOwner;
+        super(mv, labelOwner, remapReturn);
         this.instructionAdapter = new InstructionAdapter(mv);
         this.end = end;
         this.remapper = localVarRemapper;
-        this.remapReturn = remapReturn;
         this.nodeRemapper = nodeRemapper;
-    }
-
-    @Override
-    public void visitInsn(int opcode) {
-        if (remapReturn && opcode >= Opcodes.IRETURN && opcode <= Opcodes.RETURN) {
-            if (skipReturnRemapping) {
-                super.visitInsn(opcode);
-            } else {
-                super.visitJumpInsn(Opcodes.GOTO, end);
-            }
-            skipReturnRemapping = false;
-        }
-        else {
-            super.visitInsn(opcode);
-        }
-    }
-
-    @Override
-    public void visitMethodInsn(int opcode, String owner, String name, String desc, boolean itf) {
-        if (owner.equals(InlineCodegenUtil.GLOBAL_RETURN)) {
-            skipReturnRemapping = !labelOwner.isMyLabel(name);
-            if (skipReturnRemapping) {
-                super.visitMethodInsn(opcode, owner, name, desc, itf);
-            }
-        } else {
-            super.visitMethodInsn(opcode, owner, name, desc, itf);
-        }
     }
 
     @Override
@@ -139,4 +103,8 @@ public class RemapVisitor extends InstructionAdapter {
         return null;
     }
 
+    @Override
+    public Label getEndLabel() {
+        return end;
+    }
 }

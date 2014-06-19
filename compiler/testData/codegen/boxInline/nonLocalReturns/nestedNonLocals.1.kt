@@ -20,7 +20,7 @@ fun test1(intKind: Kind, extKind: Kind): Global {
 
         val internalResult = doCall @int {
             () : Internal ->
-            if (intKind == Kind.LOCAL) {
+            if (intKind == Kind.GLOBAL) {
                 return@test1 Global("internal -> global")
             } else if (intKind == EXTERNAL) {
                 return@ext External("internal -> external")
@@ -35,12 +35,12 @@ fun test1(intKind: Kind, extKind: Kind): Global {
         External(internalResult.value + ": external -> local");
     }
 
-    return Global(externalResult.value + " -> exit")
+    return Global(externalResult.value + ": exit")
 }
 
 fun box(): String {
     var test1 = test1(LOCAL, LOCAL).value
-    if (test1 != "localResult=local") return "test1: ${test1}"
+    if (test1 != "internal -> local: external -> local: exit") return "test1: ${test1}"
 
     test1 = test1(EXTERNAL, LOCAL).value
     if (test1 != "localResult=local") return "test2: ${test1}"
