@@ -88,55 +88,54 @@ public class MethodInliner {
     }
 
     public InlineResult doInline(
-            MethodVisitor adapter,
-            LocalVarRemapper remapper,
+            @NotNull MethodVisitor adapter,
+            @NotNull LocalVarRemapper remapper,
             boolean remapReturn,
-            boolean isInliningLambda
+            @NotNull LabelOwner labelOwner
     ) {
-
-
         //analyze body
-        MethodNode transformedNode = markPlacesForInlineAndRemoveInlinable(node, isInliningLambda);
+        MethodNode transformedNode = markPlacesForInlineAndRemoveInlinable(node);
 
         //substitute returns with "goto end" instruction to keep non local returns in lambdas
-        final Label end = new Label();
-        if (remapReturn) {
-            MethodNode gotoInsteadReturns = new MethodNode(InlineCodegenUtil.API, transformedNode.access, transformedNode.name, transformedNode.desc,
-                                             transformedNode.signature,
-                                             transformedNode.exceptions.toArray(new String[transformedNode.exceptions.size()]));
-            transformedNode.accept(new MethodVisitor(InlineCodegenUtil.API, gotoInsteadReturns) {
-
-                private boolean isGlobalReturn = false;
-
-                @Override
-                public void visitInsn(int opcode) {
-                    if (InlineCodegenUtil.isReturnOpcode(opcode) && !isGlobalReturn) {
-                        super.visitJumpInsn(Opcodes.GOTO, end);
-                    } else {
-                        super.visitInsn(opcode);
-                    }
-                    isGlobalReturn = false;
-                }
-
-                @Override
-                public void visitMethodInsn(int opcode, String owner, String name, String desc, boolean itf) {
-                    if (owner.equals(InlineCodegenUtil.GLOBAL_RETURN)) {
-                        isGlobalReturn = true;
-                    } else {
-                        super.visitMethodInsn(opcode, owner, name, desc, itf);
-                    }
-                }
-            });
-
-            transformedNode = gotoInsteadReturns;
-        }
+        Label end = new Label();
+        //if (remapReturn) {
+        //    MethodNode gotoInsteadReturns = new MethodNode(InlineCodegenUtil.API, transformedNode.access, transformedNode.name, transformedNode.desc,
+        //    MethodNode gotoInsteadReturns = new MethodNode(InlineCodegenUtil.API, transformedNode.access, transformedNode.name, transformedNode.desc,
+        //                                     transformedNode.signature,
+        //                                     transformedNode.exceptions.toArray(new String[transformedNode.exceptions.size()]));
+        //    transformedNode.accept(new MethodVisitor(InlineCodegenUtil.API, gotoInsteadReturns) {
+        //
+        //        private boolean isGlobalReturn = false;
+        //
+        //        @Override
+        //        public void visitInsn(int opcode) {
+        //            if (InlineCodegenUtil.isReturnOpcode(opcode) && !isGlobalReturn) {
+        //                super.visitJumpInsn(Opcodes.GOTO, end);
+        //            } else {
+        //                super.visitInsn(opcode);
+        //            }
+        //            isGlobalReturn = false;
+        //        }
+        //
+        //        @Override
+        //        public void visitMethodInsn(int opcode, String owner, String name, String desc, boolean itf) {
+        //            if (owner.equals(InlineCodegenUtil.GLOBAL_RETURN) && labelOwner.isMyLabel(name)) {
+        //                isGlobalReturn = true;
+        //            } else {
+        //                super.visitMethodInsn(opcode, owner, name, desc, itf);
+        //            }
+        //        }
+        //    });
+        //
+        //    transformedNode = gotoInsteadReturns;
+        //}
 
         transformedNode = doInline(transformedNode);
         removeClosureAssertions(transformedNode);
         InsnList instructions = transformedNode.instructions;
         instructions.resetLabels();
 
-        RemapVisitor visitor = new RemapVisitor(adapter, end, remapper, false, nodeRemapper);
+        RemapVisitor visitor = new RemapVisitor(adapter, end, remapper, remapReturn, nodeRemapper, labelOwner);
         try {
             transformedNode.accept(visitor);
         }
@@ -224,7 +223,7 @@ public class MethodInliner {
                                                               "Lambda inlining " + info.getLambdaClassType().getInternalName());
 
                     LocalVarRemapper remapper = new LocalVarRemapper(lambdaParameters, valueParamShift);
-                    InlineResult lambdaResult = inliner.doInline(this.mv, remapper, true, true);//TODO add skipped this and receiver
+                    InlineResult lambdaResult = inliner.doInline(this.mv, remapper, true, info);//TODO add skipped this and receiver
                     result.addAllClassesToRemove(lambdaResult);
 
                     //return value boxing/unboxing
@@ -330,7 +329,7 @@ public class MethodInliner {
     }
 
     @NotNull
-    protected MethodNode markPlacesForInlineAndRemoveInlinable(@NotNull MethodNode node, boolean isInliningLambda) {
+    protected MethodNode markPlacesForInlineAndRemoveInlinable(@NotNull MethodNode node) {
         node = prepareNode(node);
 
         Analyzer<SourceValue> analyzer = new Analyzer<SourceValue>(new SourceInterpreter());

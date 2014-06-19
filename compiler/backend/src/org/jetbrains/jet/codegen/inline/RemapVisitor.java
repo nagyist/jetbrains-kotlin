@@ -36,14 +36,20 @@ public class RemapVisitor extends InstructionAdapter {
 
     private final InstructionAdapter instructionAdapter;
 
+    private final LabelOwner labelOwner;
+
+    private boolean skipReturnRemapping;
+
     protected RemapVisitor(
             MethodVisitor mv,
             Label end,
             LocalVarRemapper localVarRemapper,
             boolean remapReturn,
-            FieldRemapper nodeRemapper
+            FieldRemapper nodeRemapper,
+            LabelOwner labelOwner
     ) {
         super(InlineCodegenUtil.API, mv);
+        this.labelOwner = labelOwner;
         this.instructionAdapter = new InstructionAdapter(mv);
         this.end = end;
         this.remapper = localVarRemapper;
@@ -54,10 +60,27 @@ public class RemapVisitor extends InstructionAdapter {
     @Override
     public void visitInsn(int opcode) {
         if (remapReturn && opcode >= Opcodes.IRETURN && opcode <= Opcodes.RETURN) {
-            super.visitJumpInsn(Opcodes.GOTO, end);
+            if (skipReturnRemapping) {
+                super.visitInsn(opcode);
+            } else {
+                super.visitJumpInsn(Opcodes.GOTO, end);
+            }
+            skipReturnRemapping = false;
         }
         else {
             super.visitInsn(opcode);
+        }
+    }
+
+    @Override
+    public void visitMethodInsn(int opcode, String owner, String name, String desc, boolean itf) {
+        if (owner.equals(InlineCodegenUtil.GLOBAL_RETURN)) {
+            skipReturnRemapping = !labelOwner.isMyLabel(name);
+            if (skipReturnRemapping) {
+                super.visitMethodInsn(opcode, owner, name, desc, itf);
+            }
+        } else {
+            super.visitMethodInsn(opcode, owner, name, desc, itf);
         }
     }
 

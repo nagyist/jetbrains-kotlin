@@ -221,7 +221,7 @@ public class InlineCodegen implements CallGenerator {
 
         LocalVarRemapper remapper = new LocalVarRemapper(parameters, initialFrameSize);
 
-        return inliner.doInline(codegen.v, remapper, true, false);
+        return inliner.doInline(codegen.v, remapper, true, LabelOwner.ACCEPT_ALL);
     }
 
     private void generateClosuresBodies() {
@@ -372,12 +372,18 @@ public class InlineCodegen implements CallGenerator {
 
     public void rememberClosure(JetExpression expression, Type type) {
         JetFunctionLiteralExpression lambda = (JetFunctionLiteralExpression) JetPsiUtil.deparenthesize(expression);
+        assert lambda != null : "Couldn't find lambda in " + expression.getText();
+
+        String labelNameIfPresent = null;
+        PsiElement parent = lambda.getParent();
+        if (parent instanceof JetLabeledExpression) {
+            labelNameIfPresent = ((JetLabeledExpression) parent).getLabelName();
+        }
+        LambdaInfo info = new LambdaInfo(lambda, typeMapper, labelNameIfPresent);
+
         ParameterInfo closureInfo = invocationParamBuilder.addNextParameter(type, true, null);
-
-        LambdaInfo info = new LambdaInfo(lambda, typeMapper);
-        expressionMap.put(closureInfo.getIndex(), info);
-
         closureInfo.setLambda(info);
+        expressionMap.put(closureInfo.getIndex(), info);
     }
 
     private void putClosureParametersOnStack() {

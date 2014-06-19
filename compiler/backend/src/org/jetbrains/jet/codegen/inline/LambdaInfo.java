@@ -17,6 +17,7 @@
 package org.jetbrains.jet.codegen.inline;
 
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.jetbrains.org.objectweb.asm.Type;
 import org.jetbrains.org.objectweb.asm.tree.FieldInsnNode;
 import org.jetbrains.org.objectweb.asm.tree.MethodNode;
@@ -38,12 +39,15 @@ import static org.jetbrains.jet.codegen.binding.CodegenBinding.CLOSURE;
 import static org.jetbrains.jet.codegen.binding.CodegenBinding.anonymousClassForFunction;
 import static org.jetbrains.jet.codegen.binding.CodegenBinding.asmTypeForAnonymousClass;
 
-public class LambdaInfo implements CapturedParamOwner {
+public class LambdaInfo implements CapturedParamOwner, LabelOwner {
 
     public final JetFunctionLiteralExpression expression;
 
     @NotNull
     private final JetTypeMapper typeMapper;
+
+    @Nullable
+    public final String labelName;
 
     public final CalculatedClosure closure;
 
@@ -57,9 +61,10 @@ public class LambdaInfo implements CapturedParamOwner {
 
     private final Type closureClassType;
 
-    LambdaInfo(@NotNull JetFunctionLiteralExpression expression, @NotNull JetTypeMapper typeMapper) {
+    LambdaInfo(@NotNull JetFunctionLiteralExpression expression, @NotNull JetTypeMapper typeMapper, @Nullable String labelName) {
         this.expression = expression;
         this.typeMapper = typeMapper;
+        this.labelName = labelName;
         BindingContext bindingContext = typeMapper.getBindingContext();
         functionDescriptor = bindingContext.get(BindingContext.FUNCTION, expression.getFunctionLiteral());
         assert functionDescriptor != null : "Function is not resolved to descriptor: " + expression.getText();
@@ -156,5 +161,10 @@ public class LambdaInfo implements CapturedParamOwner {
     @Override
     public Type getType() {
         return closureClassType;
+    }
+
+    @Override
+    public boolean isMyLabel(@NotNull String name) {
+        return name.equals(labelName);
     }
 }
