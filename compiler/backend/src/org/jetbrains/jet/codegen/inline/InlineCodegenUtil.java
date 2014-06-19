@@ -33,6 +33,7 @@ import org.jetbrains.jet.descriptors.serialization.JavaProtoBuf;
 import org.jetbrains.jet.descriptors.serialization.ProtoBuf;
 import org.jetbrains.jet.descriptors.serialization.descriptors.DeserializedSimpleFunctionDescriptor;
 import org.jetbrains.jet.lang.descriptors.*;
+import org.jetbrains.jet.lang.psi.JetReturnExpression;
 import org.jetbrains.jet.lang.resolve.BindingContextUtils;
 import org.jetbrains.jet.lang.resolve.DescriptorUtils;
 import org.jetbrains.jet.lang.resolve.java.JvmAbi;
@@ -64,6 +65,8 @@ public class InlineCodegenUtil {
     public static final String RECEIVER$0 = "receiver$0";
 
     public static final String GLOBAL_RETURN = "$GLOBAL_RETURN";
+
+    public static final String ROOT_LABEL = "$ROOT";
 
     @Nullable
     public static MethodNode getMethodNode(
@@ -277,8 +280,9 @@ public class InlineCodegenUtil {
         return opcode >= Opcodes.IRETURN && opcode <= Opcodes.RETURN;
     }
 
-    public static void generateGlobalReturnFlag(InstructionAdapter iv) {
-        iv.visitMethodInsn(Opcodes.INVOKESTATIC, GLOBAL_RETURN, GLOBAL_RETURN, "()V", false);
-  }
+    public static void generateGlobalReturnFlag(@NotNull InstructionAdapter iv, @NotNull JetReturnExpression expression) {
+        String name = expression.getLabelName();
+        iv.visitMethodInsn(Opcodes.INVOKESTATIC, GLOBAL_RETURN, name == null ? ROOT_LABEL : name, "()V", false);
+    }
 
 }

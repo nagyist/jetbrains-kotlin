@@ -72,6 +72,7 @@ import static org.jetbrains.jet.codegen.AsmUtil.*;
 import static org.jetbrains.jet.codegen.JvmCodegenUtil.*;
 import static org.jetbrains.jet.codegen.binding.CodegenBinding.*;
 import static org.jetbrains.jet.lang.resolve.BindingContext.*;
+import static org.jetbrains.jet.lang.resolve.BindingContextUtils.callableDescriptorToDeclaration;
 import static org.jetbrains.jet.lang.resolve.BindingContextUtils.getNotNull;
 import static org.jetbrains.jet.lang.resolve.BindingContextUtils.isVarCapturedInClosure;
 import static org.jetbrains.jet.lang.resolve.java.AsmTypeConstants.*;
@@ -1588,7 +1589,7 @@ public class ExpressionCodegen extends JetVisitor<StackValue, StackValue> implem
             }
 
             if (isNonLocalReturn) {
-                InlineCodegenUtil.generateGlobalReturnFlag(v);
+                InlineCodegenUtil.generateGlobalReturnFlag(v, expression);
             }
             v.areturn(returnType);
         }
@@ -1599,11 +1600,20 @@ public class ExpressionCodegen extends JetVisitor<StackValue, StackValue> implem
         return StackValue.none();
     }
 
-    private static boolean isNonLocalReturn(@NotNull CallableMemberDescriptor descriptor, @NotNull JetReturnExpression expression) {
-        return  //is call inside lambda
-                isLocalFunOrLambda(descriptor) && descriptor.getName().isSpecial() &&
-                //and there is not explicit local return: return@lambda
-                expression.getLabelName() == null;
+    private boolean isNonLocalReturn(@NotNull CallableMemberDescriptor descriptor, @NotNull JetReturnExpression expression) {
+        //call inside lambda
+        if (isLocalFunOrLambda(descriptor) && descriptor.getName().isSpecial()) {
+            if (expression.getLabelName() == null) {
+                //non labeled return couldn't be local in lambda
+                return true;
+            }
+
+            PsiElement element = bindingContext.get(LABEL_TARGET, expression.getTargetLabel());
+            if (element != callableDescriptorToDeclaration(bindingContext, context.getContextDescriptor())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public void returnExpression(JetExpression expr) {
