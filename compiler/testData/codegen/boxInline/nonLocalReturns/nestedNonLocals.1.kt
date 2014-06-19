@@ -1,38 +1,49 @@
 import test.*
+import Kind.*
 
 enum class Kind {
     LOCAL
-    INT_RETURN
-    EXT_RETURN
+    EXTERNAL
+    GLOBAL
 }
 
+class Internal(val value: String)
 
-fun test1(intKind: Int, extKind: Int): String {
+class External(val value: String)
 
-    doCall @ext {
-        val localResult = doCall @int {
-            () : String ->
-            if (kind == 1) {
-                return@int "local"
-            } if (kind == 2)
-                return "nonLocal"
+class Global(val value: String)
+
+fun test1(intKind: Kind, extKind: Kind): Global {
+
+    var externalResult = doCall @ext {
+        () : External ->
+
+        val internalResult = doCall @int {
+            () : Internal ->
+            if (intKind == Kind.LOCAL) {
+                return@test1 Global("internal -> global")
+            } else if (intKind == EXTERNAL) {
+                return@ext External("internal -> external")
             }
+            return@int Internal("internal -> local")
         }
 
-        return localResult
+        if (extKind == GLOBAL || extKind == EXTERNAL) {
+            return Global("external -> global")
+        }
+
+        External(internalResult.value + ": external -> local");
     }
 
-
-    return "localResult=" + localResult;
+    return Global(externalResult.value + " -> exit")
 }
 
-
 fun box(): String {
-    val test1 = test1(true)
+    var test1 = test1(LOCAL, LOCAL).value
     if (test1 != "localResult=local") return "test1: ${test1}"
 
-    val test2 = test1(false)
-    if (test2 != "nonLocal") return "test2: ${test2}"
+    test1 = test1(EXTERNAL, LOCAL).value
+    if (test1 != "localResult=local") return "test2: ${test1}"
 
     return "OK"
 }
