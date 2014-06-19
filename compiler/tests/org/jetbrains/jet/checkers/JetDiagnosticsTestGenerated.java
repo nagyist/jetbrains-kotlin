@@ -1,4 +1,5 @@
 /*
+/*
  * Copyright 2010-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -4165,6 +4166,11 @@ public class JetDiagnosticsTestGenerated extends AbstractJetDiagnosticsTest {
                 @TestMetadata("localFun.kt")
                 public void testLocalFun() throws Exception {
                     doTest("compiler/testData/diagnostics/tests/inline/nonLocalReturns/localFun.kt");
+                }
+                
+                @TestMetadata("nestedNonLocals.kt")
+                public void testNestedNonLocals() throws Exception {
+                    doTest("compiler/testData/diagnostics/tests/inline/nonLocalReturns/nestedNonLocals.kt");
                 }
                 
                 @TestMetadata("noInlineLambda.kt")

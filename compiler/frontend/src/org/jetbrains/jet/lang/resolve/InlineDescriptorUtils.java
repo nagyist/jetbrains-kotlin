@@ -24,23 +24,26 @@ import org.jetbrains.jet.lang.descriptors.*;
 import org.jetbrains.jet.lang.psi.*;
 import org.jetbrains.jet.lang.resolve.calls.model.ResolvedCall;
 
-/**
- * Created by mike on 6/18/14.
- */
 public class InlineDescriptorUtils {
 
     public static boolean checkNonLocalReturnUsage(@NotNull DeclarationDescriptor returnFunction, @NotNull JetExpression startExpression, @NotNull BindingTrace trace) {
         PsiElement containingFunction = getDeclaration(startExpression);
+        assert containingFunction != null : "Couldn't find parent declaration for " + startExpression.getText();
 
-        assert containingFunction != null;
         DeclarationDescriptor parentDescriptor = trace.get(BindingContext.DECLARATION_TO_DESCRIPTOR, containingFunction);
-        BindingContext bindingContext = trace.getBindingContext();
+        if (parentDescriptor == null) {
+            return false;
+        }
 
+        BindingContext bindingContext = trace.getBindingContext();
         DeclarationDescriptor containingFunctionDescriptor = getContainingClassOrFunctionDescriptor(parentDescriptor, false);
+        if (containingFunctionDescriptor == null) {
+            return false;
+        }
         containingFunction = BindingContextUtils.descriptorToDeclaration(trace.getBindingContext(), containingFunctionDescriptor);
         assert containingFunction != null;
 
-        while (containingFunction instanceof JetFunctionLiteral) {
+        while (containingFunction instanceof JetFunctionLiteral && returnFunction != containingFunctionDescriptor) {
             //JetFunctionLiteralExpression
             containingFunction = containingFunction.getParent();
             boolean isInlinedLambda = false;

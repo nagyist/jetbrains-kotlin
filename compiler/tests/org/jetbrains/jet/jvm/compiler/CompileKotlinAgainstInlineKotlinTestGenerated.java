@@ -276,9 +276,19 @@ public class CompileKotlinAgainstInlineKotlinTestGenerated extends AbstractCompi
             JetTestUtils.assertAllTestsPresentByMetadata(this.getClass(), "org.jetbrains.jet.generators.tests.TestsPackage", new File("compiler/testData/codegen/boxInline/nonLocalReturns"), Pattern.compile("^(.+)\\.1.kt$"), true);
         }
         
+        @TestMetadata("explicitLocalReturn.1.kt")
+        public void testExplicitLocalReturn() throws Exception {
+            doBoxTestWithInlineCheck("compiler/testData/codegen/boxInline/nonLocalReturns/explicitLocalReturn.1.kt");
+        }
+        
         @TestMetadata("justReturnInLambda.1.kt")
         public void testJustReturnInLambda() throws Exception {
             doBoxTestWithInlineCheck("compiler/testData/codegen/boxInline/nonLocalReturns/justReturnInLambda.1.kt");
+        }
+        
+        @TestMetadata("nestedNonLocals.1.kt")
+        public void testNestedNonLocals() throws Exception {
+            doBoxTestWithInlineCheck("compiler/testData/codegen/boxInline/nonLocalReturns/nestedNonLocals.1.kt");
         }
         
         @TestMetadata("noInlineLocalReturn.1.kt")
