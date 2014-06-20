@@ -16,6 +16,8 @@
 
 package org.jetbrains.jet.grammar;
 
+import org.jetbrains.annotations.NotNull;
+
 public class Identifier extends Token {
     private final String name;
 
@@ -29,6 +31,7 @@ public class Identifier extends Token {
         return "[#" + getText() + "]";
     }
 
+    @NotNull
     public String getName() {
         return name;
     }
