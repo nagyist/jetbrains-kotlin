@@ -126,11 +126,19 @@ class JDIEval(
         return int(array.array().length())
     }
 
+    private fun checkArrayLength(array: Value, index: Value) {
+        if (getArrayLength(array).int <= index.int) {
+            throwBrokenCodeException(ArrayIndexOutOfBoundsException(index.int))
+        }
+    }
+
     override fun getArrayElement(array: Value, index: Value): Value {
+        checkArrayLength(array, index)
         return array.array().getValue(index.int).asValue()
     }
 
     override fun setArrayElement(array: Value, index: Value, newValue: Value) {
+        checkArrayLength(array, index)
         array.array().setValue(index.int, newValue.asJdiValue(vm, array.asmType.arrayElementType))
     }
 
@@ -276,8 +284,5 @@ fun <T> mayThrow(f: () -> T): T {
     }
     catch (e: jdi.InvocationException) {
         throw ThrownFromEvaluatedCodeException(e.exception().asValue())
-    }
-    catch (e: Throwable) {
-        throwBrokenCodeException(e)
     }
 }
