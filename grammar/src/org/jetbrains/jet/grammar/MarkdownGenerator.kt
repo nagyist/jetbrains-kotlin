@@ -26,7 +26,20 @@ import java.util.regex.Pattern
 import java.awt.Toolkit
 
 private val GRAMMAR_EXTENSION: String = "grm"
-private val FILE_NAMES_IN_ORDER = listOf("notation", "toplevel", "class", "class_members", "enum", "types", "control", "expressions", "when", "modifiers", "attributes", "lexical")
+private val FILE_NAMES_IN_ORDER = listOf(
+        "notation",
+        "toplevel",
+        "class",
+        "class_members",
+        "enum",
+        "types",
+        "control",
+        "expressions",
+        "when",
+        "modifiers",
+        "attributes",
+        "lexical"
+)
 
 public fun main(args: Array<String>) {
     val grammarDir = File("grammar/src")
@@ -53,32 +66,27 @@ public fun main(args: Array<String>) {
 }
 
 private fun getJoinedTokensFromAllFiles(grammarDir: File, used: MutableSet<File>): List<Token> {
-    val allTokens = arrayListOf<Token>()
-    for (fileName in FILE_NAMES_IN_ORDER) {
+    return FILE_NAMES_IN_ORDER.flatMap {
+        fileName ->
         val file = File(grammarDir, fileName + "." + GRAMMAR_EXTENSION)
         used.add(file)
         val text = FileUtil.loadFile(file, true)
         val textWithMarkedDeclarations = markDeclarations(text)
-        val tokens = tokenize(createLexer(file.getPath(), textWithMarkedDeclarations))
-        allTokens.addAll(tokens)
+        tokenize(createLexer(file.getPath(), textWithMarkedDeclarations))
     }
-    return allTokens
 }
 
 private fun createLexer(fileName: String, output: StringBuilder): _GrammarLexer {
-    val grammarLexer = _GrammarLexer(null as Reader?)
+    val grammarLexer = _GrammarLexer(null : Reader?)
     grammarLexer.reset(output, 0, output.length(), 0)
     grammarLexer.setFileName(fileName)
     return grammarLexer
 }
 
 private fun assertAllFilesAreUsed(grammarDir: File, used: Set<File>) {
-    for (file in grammarDir.listFiles()!!) {
-        if (file.getName().endsWith(GRAMMAR_EXTENSION)) {
-            if (!used.contains(file)) {
-                throw IllegalStateException("Unused grammar file : " + file.getAbsolutePath())
-            }
-        }
+    val unusedGrammarFiles = grammarDir.listFiles()!!.filter { it.getName().endsWith(GRAMMAR_EXTENSION) && !used.contains(it) }
+    if (unusedGrammarFiles.isNotEmpty()) {
+        throw IllegalStateException("Unused grammar file(s):\n" + unusedGrammarFiles.map { "  $it\n" }.join(""))
     }
 }
 
@@ -126,10 +134,9 @@ private fun generate(tokens: List<Token>): StringBuilder {
     for (token in tokens) {
         if (token is Declaration) {
             val declaration = token as Declaration
-            result.append("{anchor:").append(declaration.getName()).append("}")
+            result.append("{anchor:${declaration.getName()}}")
             if (!usedSymbols.contains(declaration.getName())) {
-                //                    result.append("(!) *Unused!* ");
-                System.out.println("Unused: " + tokenWithPosition(token))
+                println("Unused: " + tokenWithPosition(token))
             }
             val myUsages = usages[declaration.getName()]!!
             if (!myUsages.isEmpty()) {
@@ -145,7 +152,7 @@ private fun generate(tokens: List<Token>): StringBuilder {
                 val identifier = token as Identifier
                 if (!declaredSymbols.contains(identifier.getName())) {
                     result.append("(!) *Undeclared!* ")
-                    System.out.println("Undeclared: " + tokenWithPosition(token))
+                    println("Undeclared: " + tokenWithPosition(token))
                 }
             }
         result.append(token)
