@@ -277,4 +277,7 @@ fun <T> mayThrow(f: () -> T): T {
     catch (e: jdi.InvocationException) {
         throw ThrownFromEvaluatedCodeException(e.exception().asValue())
     }
+    catch (e: Throwable) {
+        throwBrokenCodeException(e)
+    }
 }

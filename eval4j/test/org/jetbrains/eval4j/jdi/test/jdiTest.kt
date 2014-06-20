@@ -138,7 +138,7 @@ fun suite(): TestSuite {
                         assertEquals(expected.result.obj().toString(), value.result.jdiObj.callToString())
                     }
                     else if (expected is ExceptionThrown && value is ExceptionThrown) {
-                        val valueObj: Any? = value.exception.obj()
+                        val valueObj = value.exception.obj()
                         val actual = if (valueObj is ObjectReference) valueObj.callToString() else valueObj.toString()
                         assertEquals(expected.exception.obj().toString(), actual)
                     }

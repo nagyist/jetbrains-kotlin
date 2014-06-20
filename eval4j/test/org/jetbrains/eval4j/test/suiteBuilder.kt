@@ -73,18 +73,16 @@ fun buildTestCase(ownerClass: Class<TestData>,
             else {
                 method.setAccessible(true)
                 try {
-                    try {
-                        val result = method.invoke(if (isStatic) null else ownerClass.newInstance())
-                        val returnType = Type.getType(method.getReturnType()!!)
-                        expected = ValueReturned(objectToValue(result, returnType))
-                    }
-                    catch (e: Throwable) {
-                        val cause = e.getCause()
-                        expected = ExceptionThrown(objectToValue(cause, Type.getType(cause.javaClass)), ExceptionThrown.ExceptionType.FROM_EVALUATOR)
-                    }
+                    val result = method.invoke(if (isStatic) null else ownerClass.newInstance())
+                    val returnType = Type.getType(method.getReturnType()!!)
+                    expected = ValueReturned(objectToValue(result, returnType))
                 }
                 catch (e: UnsupportedOperationException) {
                     println("Skipping $method: $e")
+                }
+                catch (e: Throwable) {
+                    val cause = e.getCause() ?: e
+                    expected = ExceptionThrown(objectToValue(cause, Type.getType(cause.javaClass)), ExceptionThrown.ExceptionKind.FROM_EVALUATOR)
                 }
             }
         }
