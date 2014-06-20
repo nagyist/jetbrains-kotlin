@@ -3,6 +3,7 @@ package test.collections
 import kotlin.test.*
 import org.junit.Test
 import java.util.HashSet
+import java.util.LinkedHashSet
 
 class ComplexSetJsTest : SetJsTest() {
     // hashSetOf returns ComlpexHashSet because it is Generic
@@ -13,9 +14,15 @@ class PrimitiveSetJsTest : SetJsTest() {
     override fun createEmptyMutableSet(): MutableSet<String> = HashSet<String>()
 }
 
+class LinkedHashSetTest : SetJsTest() {
+    override fun createEmptyMutableSet(): MutableSet<String> = LinkedHashSet<String>()
+}
+
 abstract class SetJsTest {
     val data: Set<String> = createTestMutableSet()
     val empty: Set<String> = createEmptyMutableSet()
+
+    val SPECIAL_NAMES = array("__proto__", "constructor", "toString", "toLocaleString", "valueOf", "hasOwnProperty", "isPrototypeOf", "propertyIsEnumerable")
 
     Test fun size() {
         assertEquals(2, data.size())
@@ -115,6 +122,32 @@ abstract class SetJsTest {
 
         data.clear()
         assertTrue(data.isEmpty())
+    }
+
+    Test fun specialNamesNotContainsInEmptySet() {
+        for (element in SPECIAL_NAMES) {
+            assertFalse(empty.contains(element), "unexpected element: $element")
+        }
+    }
+
+    Test fun specialNamesNotContainsInNonEmptySet() {
+        for (element in SPECIAL_NAMES) {
+            assertFalse(data.contains(element), "unexpected element: $element")
+        }
+    }
+
+    Test fun putAndGetSpecialNamesToSet() {
+        val s = createTestMutableSet()
+
+        for (element in SPECIAL_NAMES) {
+            assertFalse(s.contains(element), "unexpected element: $element")
+
+            s.add(element)
+            assertTrue(s.contains(element), "element not found: $element")
+
+            s.remove(element)
+            assertFalse(s.contains(element), "unexpected element after remove: $element")
+        }
     }
 
     //Helpers
