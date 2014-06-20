@@ -37,6 +37,18 @@ public fun main(args: Array<String>) {
 
     val result = generate(tokens)
 
+    val outFile = File("grammar/out.txt")
+    if (!outFile.exists()) {
+        outFile.writeText(result.toString())
+        throw AssertionError("Output file does not exist, created: $outFile")
+    }
+
+    if (outFile.readText() != result.toString()) {
+        val errFile = File("grammar/out.wrong.txt")
+        errFile.writeText(result.toString())
+        throw AssertionError("File content mismatch, see $errFile")
+    }
+
     copyToClipboard(result)
 }
 
