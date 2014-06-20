@@ -697,6 +697,7 @@ class TestData extends BaseTestData {
         return "Derived";
     }
 
+    @IgnoreInReflectionTests
     String testInvokeSpecialForSuperCall() {
         return super.superCall();
     }
