@@ -86,6 +86,11 @@ public class KotlinLightClassTestGenerated extends AbstractKotlinLightClassTest 
             doTest("compiler/testData/asJava/lightClasses/nullabilityAnnotations/Generic.kt");
         }
         
+        @TestMetadata("IntOverridesAny.kt")
+        public void testIntOverridesAny() throws Exception {
+            doTest("compiler/testData/asJava/lightClasses/nullabilityAnnotations/IntOverridesAny.kt");
+        }
+        
         @TestMetadata("Primitives.kt")
         public void testPrimitives() throws Exception {
             doTest("compiler/testData/asJava/lightClasses/nullabilityAnnotations/Primitives.kt");
@@ -114,6 +119,21 @@ public class KotlinLightClassTestGenerated extends AbstractKotlinLightClassTest 
         @TestMetadata("TraitClassObjectField.kt")
         public void testTraitClassObjectField() throws Exception {
             doTest("compiler/testData/asJava/lightClasses/nullabilityAnnotations/TraitClassObjectField.kt");
+        }
+        
+        @TestMetadata("UnitAsGenericArgument.kt")
+        public void testUnitAsGenericArgument() throws Exception {
+            doTest("compiler/testData/asJava/lightClasses/nullabilityAnnotations/UnitAsGenericArgument.kt");
+        }
+        
+        @TestMetadata("UnitParameter.kt")
+        public void testUnitParameter() throws Exception {
+            doTest("compiler/testData/asJava/lightClasses/nullabilityAnnotations/UnitParameter.kt");
+        }
+        
+        @TestMetadata("VoidReturn.kt")
+        public void testVoidReturn() throws Exception {
+            doTest("compiler/testData/asJava/lightClasses/nullabilityAnnotations/VoidReturn.kt");
         }
         
         @TestMetadata("_DefaultPackage.kt")
