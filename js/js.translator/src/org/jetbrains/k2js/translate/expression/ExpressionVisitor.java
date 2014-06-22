@@ -170,6 +170,14 @@ public final class ExpressionVisitor extends TranslatorVisitor<JsNode> {
 
     @Override
     @NotNull
+    public JsNode visitCallableReferenceExpression(@NotNull JetCallableReferenceExpression expression, @NotNull TranslationContext context) {
+        JetSimpleNameExpression simpleNameExpression = expression.getCallableReference();
+        DeclarationDescriptor descriptor = BindingUtils.getDescriptorForReferenceExpression(context.bindingContext(), simpleNameExpression);
+        return ReferenceTranslator.translateAsFQReference(descriptor, context);
+    }
+
+    @Override
+    @NotNull
     public JsNode visitCallExpression(@NotNull JetCallExpression expression,
             @NotNull TranslationContext context) {
         return CallExpressionTranslator.translate(expression, null, context).source(expression);

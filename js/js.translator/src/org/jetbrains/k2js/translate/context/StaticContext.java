@@ -24,6 +24,7 @@ import com.intellij.util.containers.ContainerUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.jet.lang.descriptors.*;
+import org.jetbrains.jet.lang.descriptors.impl.ClassDescriptorBase;
 import org.jetbrains.jet.lang.resolve.BindingContext;
 import org.jetbrains.jet.lang.resolve.BindingContextUtils;
 import org.jetbrains.jet.lang.resolve.name.FqName;
@@ -460,6 +461,31 @@ public final class StaticContext {
                     return element.getContainingFile().getUserData(LibrarySourcesConfig.EXTERNAL_MODULE_NAME);
                 }
             };
+            //TODO: review, refactor, fix
+            Rule<JsNameRef> classLevelMemberDeclarationsHaveEnclosingPackagesNamesAsQualifier = new Rule<JsNameRef>() {
+                @Override
+                public JsNameRef apply(@NotNull DeclarationDescriptor descriptor) {
+                    if (!(descriptor instanceof FunctionDescriptor)) {
+                        return null;
+                    }
+                    DeclarationDescriptor classDescriptor = getContainingDeclaration(descriptor);
+                    if (!(classDescriptor instanceof ClassDescriptorBase)) {
+                        return null;
+                    }
+
+                    String className = classDescriptor.getName().asString();
+                    DeclarationDescriptor containingDescriptor = getContainingDeclaration(classDescriptor);
+                    if (!(containingDescriptor instanceof PackageFragmentDescriptor)) {
+                        return null;
+                    }
+
+                    JsNameRef result = getQualifierForParentPackage(((PackageFragmentDescriptor) containingDescriptor).getFqName());
+                    result = new JsNameRef(className, result);
+                    result = new JsNameRef(Namer.getPrototypeName(), result);
+
+                    return result;
+                }
+            };
             Rule<JsNameRef> constructorHaveTheSameQualifierAsTheClass = new Rule<JsNameRef>() {
                 @Override
                 public JsNameRef apply(@NotNull DeclarationDescriptor descriptor) {
@@ -484,6 +510,7 @@ public final class StaticContext {
             addRule(constructorHaveTheSameQualifierAsTheClass);
             addRule(standardObjectsHaveKotlinQualifier);
             addRule(packageLevelDeclarationsHaveEnclosingPackagesNamesAsQualifier);
+            addRule(classLevelMemberDeclarationsHaveEnclosingPackagesNamesAsQualifier);
         }
     }
 

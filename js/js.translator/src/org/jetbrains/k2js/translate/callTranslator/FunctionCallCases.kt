@@ -34,6 +34,13 @@ import org.jetbrains.k2js.translate.reference.CallArgumentTranslator
 import org.jetbrains.jet.lang.descriptors.CallableMemberDescriptor
 import org.jetbrains.jet.lang.descriptors.Visibilities
 import org.jetbrains.jet.lang.psi.Call.CallType
+import org.jetbrains.k2js.translate.utils.JsDescriptorUtils
+import org.jetbrains.jet.lang.descriptors.ClassDescriptor
+import org.jetbrains.jet.lang.descriptors.PackageFragmentDescriptor
+import org.jetbrains.jet.lang.resolve.DescriptorUtils
+import org.jetbrains.jet.lang.resolve.name.Name
+import org.jetbrains.jet.lang.descriptors.PackageViewDescriptor
+import org.jetbrains.jet.lang.resolve.name.FqNameUnsafe
 
 public fun addReceiverToArgs(receiver: JsExpression, arguments: List<JsExpression>): List<JsExpression> {
     if (arguments.isEmpty())
@@ -143,10 +150,19 @@ object InvokeIntrinsic : FunctionCallCase {
             return false
         val parameterCount = callInfo.callableDescriptor.getValueParameters().size()
         val funDeclaration = callInfo.callableDescriptor.getContainingDeclaration()
-        return funDeclaration == ((if (callInfo.callableDescriptor.getReceiverParameter() == null)
-            KotlinBuiltIns.getInstance().getFunction(parameterCount)
-        else
-            KotlinBuiltIns.getInstance().getExtensionFunction(parameterCount)))
+        if (JsDescriptorUtils.isBuiltin(funDeclaration))
+            return funDeclaration == ((if (callInfo.callableDescriptor.getReceiverParameter() == null)
+                    KotlinBuiltIns.getInstance().getFunction(parameterCount)
+                else
+                    KotlinBuiltIns.getInstance().getExtensionFunction(parameterCount)))
+
+        // TODO This check should be improved
+        val fqName = DescriptorUtils.getFqName(funDeclaration).asString()
+        return if (callInfo.callableDescriptor.getReceiverParameter() == null) {
+            fqName == "kotlin.reflect.KFunction" + parameterCount
+        } else {
+            fqName == "kotlin.reflect.KMemberFunction" + parameterCount
+        }
     }
 
     override fun FunctionCallInfo.thisObject(): JsExpression {
@@ -156,6 +172,28 @@ object InvokeIntrinsic : FunctionCallCase {
         return JsInvocation(Namer.getFunctionCallRef(thisObject!!), addReceiverToArgs(receiverObject!!, argumentsInfo.getTranslateArguments()))
     }
 }
+
+object InvokeReflectIntrinsic : FunctionCallCase {
+    fun canApply(callInfo: FunctionCallInfo): Boolean {
+        if (!callInfo.callableDescriptor.getName().asString().equals("invoke"))
+            return false
+        val parameterCount = callInfo.callableDescriptor.getValueParameters().size()
+        val funDeclaration = callInfo.callableDescriptor.getContainingDeclaration()
+
+        // TODO This check should be improved
+        val fqName = DescriptorUtils.getFqName(funDeclaration).asString()
+        return callInfo.callableDescriptor.getReceiverParameter() !== null &&
+            fqName == "kotlin.reflect.KExtensionFunction" + parameterCount
+    }
+
+    override fun FunctionCallInfo.thisObject(): JsExpression {
+        return JsInvocation(thisObject, argumentsInfo.getTranslateArguments())
+    }
+    override fun FunctionCallInfo.bothReceivers(): JsExpression {
+        return JsInvocation(thisObject!!, addReceiverToArgs(receiverObject!!, argumentsInfo.getTranslateArguments()))
+    }
+}
+
 
 object ConstructorCallCase : FunctionCallCase {
     fun canApply(callInfo: FunctionCallInfo): Boolean {
@@ -195,6 +233,8 @@ fun FunctionCallInfo.translateFunctionCall(): JsExpression {
             intrinsic
         InvokeIntrinsic.canApply(this) ->
             InvokeIntrinsic.translate(this)
+        InvokeReflectIntrinsic.canApply(this) ->
+            InvokeReflectIntrinsic.translate(this)
         ConstructorCallCase.canApply(this) ->
             ConstructorCallCase.translate(this)
         SuperCallCase.canApply(this) ->
