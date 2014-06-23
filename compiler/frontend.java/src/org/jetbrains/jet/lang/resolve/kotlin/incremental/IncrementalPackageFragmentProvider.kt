@@ -27,24 +27,18 @@ import org.jetbrains.jet.lang.descriptors.PackageFragmentDescriptorImpl
 import org.jetbrains.jet.lang.resolve.scopes.JetScope
 import org.jetbrains.jet.storage.StorageManager
 import org.jetbrains.jet.descriptors.serialization.descriptors.DeserializedPackageMemberScope
-import org.jetbrains.jet.descriptors.serialization.DescriptorFinder
 import org.jetbrains.jet.descriptors.serialization.JavaProtoBufUtil
 import org.jetbrains.jet.lang.resolve.java.JavaDescriptorResolver
-import org.jetbrains.jet.descriptors.serialization.ClassId
-import org.jetbrains.jet.lang.descriptors.ClassDescriptor
-import org.jetbrains.jet.lang.resolve.name.Name
-import org.jetbrains.jet.lang.resolve.kotlin.DeserializedResolverUtils
-import java.util.Collections
 import org.jetbrains.jet.utils.addToStdlib.singletonOrEmptyList
 import org.jetbrains.jet.storage.NotNullLazyValue
-import org.jetbrains.jet.lang.psi.JetNamedFunction
-import org.jetbrains.jet.lang.psi.JetProperty
 import org.jetbrains.jet.descriptors.serialization.ProtoBuf
 import org.jetbrains.jet.lang.resolve.kotlin.PackagePartClassUtils
 import org.jetbrains.jet.descriptors.serialization.JavaProtoBuf
 import org.jetbrains.jet.lang.resolve.java.JvmClassName
 import org.jetbrains.jet.descriptors.serialization.PackageData
 import org.jetbrains.jet.lang.resolve.kotlin.DeserializationGlobalContextForJava
+import java.io.IOException
+import com.intellij.openapi.diagnostic.Logger
 
 public class IncrementalPackageFragmentProvider(
         sourceFiles: Collection<JetFile>,
@@ -107,7 +101,13 @@ public class IncrementalPackageFragmentProvider(
                 JetScope.EMPTY
             }
             else {
-                IncrementalPackageScope(JavaProtoBufUtil.readPackageDataFrom(packageDataBytes))
+                try {
+                    IncrementalPackageScope(JavaProtoBufUtil.readPackageDataFrom(packageDataBytes))
+                }
+                catch (e: IOException) {
+                    LOG.error(e)
+                    JetScope.EMPTY
+                }
             }
         }
 
@@ -133,6 +133,10 @@ public class IncrementalPackageFragmentProvider(
                         }
             }
         }
+    }
+
+    class object {
+        val LOG = Logger.getInstance(javaClass<IncrementalPackageFragmentProvider>())
     }
 }
 
