@@ -54,7 +54,6 @@ import org.jetbrains.jet.lang.resolve.java.jvmSignature.JvmClassSignature;
 import org.jetbrains.jet.lang.resolve.java.jvmSignature.JvmMethodParameterKind;
 import org.jetbrains.jet.lang.resolve.java.jvmSignature.JvmMethodParameterSignature;
 import org.jetbrains.jet.lang.resolve.java.jvmSignature.JvmMethodSignature;
-import org.jetbrains.jet.lang.resolve.kotlin.PackagePartClassUtils;
 import org.jetbrains.jet.lang.resolve.name.Name;
 import org.jetbrains.jet.lang.types.*;
 import org.jetbrains.jet.lang.types.checker.JetTypeChecker;
@@ -485,7 +484,7 @@ public class ImplementationBodyCodegen extends ClassBodyCodegen {
             JetType returnType = function.getReturnType();
             assert returnType != null : function.toString();
             JetType paramType = function.getValueParameters().get(0).getType();
-            if (JetTypeChecker.INSTANCE.equalTypes(arrayType, returnType) && JetTypeChecker.INSTANCE.equalTypes(arrayType, paramType)) {
+            if (JetTypeChecker.DEFAULT.equalTypes(arrayType, returnType) && JetTypeChecker.DEFAULT.equalTypes(arrayType, paramType)) {
                 return true;
             }
         }
