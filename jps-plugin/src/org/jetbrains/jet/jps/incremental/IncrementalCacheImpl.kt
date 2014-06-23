@@ -174,7 +174,7 @@ public class IncrementalCacheImpl(val baseDir: File): IncrementalCache {
         private fun getConstantsMap(bytes: ByteArray): Map<String, Any> {
             val result = HashMap<String, Any>()
 
-            ClassReader(bytes).accept(object : ClassVisitor(Opcodes.ASM5) {
+            ClassReader(bytes).accept(object : ClassVisitor(Opcodes.ASM4) {
                 override fun visitField(access: Int, name: String, desc: String, signature: String?, value: Any?): FieldVisitor? {
                     if (value != null) {
                         result[name] = value
