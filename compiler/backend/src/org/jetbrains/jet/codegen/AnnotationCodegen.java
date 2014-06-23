@@ -165,7 +165,7 @@ public abstract class AnnotationCodegen {
             return;
         }
 
-        boolean isNullableType = JvmCodegenUtil.isNullableType(type);
+        boolean isNullableType = TypeUtils.isNullableType(type);
         if (!isNullableType && KotlinBuiltIns.getInstance().isPrimitiveType(type)) return;
 
         Class<?> annotationClass = isNullableType ? Nullable.class : NotNull.class;
