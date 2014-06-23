@@ -157,6 +157,11 @@ public class PseudoValueTestGenerated extends AbstractPseudoValueTest {
                 JetTestUtils.assertAllTestsPresentByMetadata(this.getClass(), "org.jetbrains.jet.generators.tests.TestsPackage", new File("compiler/testData/cfg/conventions"), Pattern.compile("^(.+)\\.kt$"), true);
             }
             
+            @TestMetadata("bothReceivers.kt")
+            public void testBothReceivers() throws Exception {
+                doTest("compiler/testData/cfg/conventions/bothReceivers.kt");
+            }
+            
             @TestMetadata("equals.kt")
             public void testEquals() throws Exception {
                 doTest("compiler/testData/cfg/conventions/equals.kt");
@@ -359,6 +364,11 @@ public class PseudoValueTestGenerated extends AbstractPseudoValueTest {
             @TestMetadata("expressionAsFunction.kt")
             public void testExpressionAsFunction() throws Exception {
                 doTest("compiler/testData/cfg/expressions/expressionAsFunction.kt");
+            }
+            
+            @TestMetadata("incdec.kt")
+            public void testIncdec() throws Exception {
+                doTest("compiler/testData/cfg/expressions/incdec.kt");
             }
             
             @TestMetadata("LazyBooleans.kt")

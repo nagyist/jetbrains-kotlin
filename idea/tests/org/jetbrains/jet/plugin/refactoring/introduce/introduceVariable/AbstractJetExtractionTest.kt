@@ -32,6 +32,11 @@ import com.intellij.testFramework.fixtures.JavaCodeInsightTestFixture
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.psi.PsiWhiteSpace
 import org.jetbrains.jet.lang.psi.JetPackageDirective
+import org.jetbrains.jet.InTextDirectivesUtils
+import org.jetbrains.jet.renderer.DescriptorRenderer
+import java.util.ArrayList
+import com.intellij.util.containers.ContainerUtil
+import kotlin.test.assertEquals
 
 public abstract class AbstractJetExtractionTest() : LightCodeInsightFixtureTestCase() {
     val fixture: JavaCodeInsightTestFixture get() = myFixture
@@ -65,9 +70,24 @@ public abstract class AbstractJetExtractionTest() : LightCodeInsightFixtureTestC
                     }
             )
 
+            val expectedParameterTypes = ArrayList<String>()
+            val fileText = file.getText()
+            val expectedTypes =
+                    InTextDirectivesUtils.findLinesWithPrefixesRemoved(fileText, "// PARAM_TYPES: ")
+                            .mapTo(expectedParameterTypes) { "[$it]" }
+                            .joinToString()
+
+            val renderer = DescriptorRenderer.DEBUG_TEXT
+
             val editor = fixture.getEditor()
             selectElements(editor, file) { (elements, previousSibling) ->
-                ExtractKotlinFunctionHandler().doInvoke(editor, file, elements, explicitPreviousSibling ?: previousSibling)
+                ExtractKotlinFunctionHandler().doInvoke(editor, file, elements, explicitPreviousSibling ?: previousSibling) {
+                    val actualTypes = (ContainerUtil.createMaybeSingletonList(it.receiverParameter) + it.parameters).map {
+                        it.parameterTypeCandidates.map { renderer.renderType(it) }. joinToString(", ", "[", "]")
+                    }.joinToString()
+
+                    assertEquals(expectedTypes, actualTypes, "Expected types mismatch.")
+                }
             }
         }
     }
@@ -88,7 +108,7 @@ public abstract class AbstractJetExtractionTest() : LightCodeInsightFixtureTestC
             JetTestUtils.assertEqualsToFile(afterFile, file.getText()!!)
         }
         catch(e: Exception) {
-            val message = if (e is ConflictsInTestsException) e.getMessages().sort().makeString(" ") else e.getMessage()
+            val message = if (e is ConflictsInTestsException) e.getMessages().sort().joinToString(" ") else e.getMessage()
             JetTestUtils.assertEqualsToFile(conflictFile, message?.replace("\n", " ") ?: e.javaClass.getName())
         }
     }
