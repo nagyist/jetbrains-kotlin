@@ -155,7 +155,7 @@ public class JetExpressionParsing extends AbstractJetParsing {
 
             @Override
             public void parseHigherPrecedence(JetExpressionParsing parser) {
-                parser.parsePrefixExpression();
+                parser.parsePrefixExpression(false);
             }
         },
 
@@ -326,21 +326,21 @@ public class JetExpressionParsing extends AbstractJetParsing {
         assert _at(LABEL_IDENTIFIER);
         PsiBuilder.Marker expression = mark();
         parseLabel();
-        parsePrefixExpression();
+        parsePrefixExpression(false);
         expression.done(LABELED_EXPRESSION);
     }
 
     /*
      * operation? prefixExpression
      */
-    private void parsePrefixExpression() {
+    private void parsePrefixExpression(boolean acceptLocalDeclarations) {
         //        System.out.println("pre at "  + myBuilder.getTokenText());
 
         if (at(LBRACKET)) {
-            if (!parseLocalDeclaration()) {
+            if (!acceptLocalDeclarations || !parseLocalDeclaration()) {
                 PsiBuilder.Marker expression = mark();
                 myJetParsing.parseAnnotations(false);
-                parsePrefixExpression();
+                parsePrefixExpression(false);
                 expression.done(ANNOTATED_EXPRESSION);
             }
             else {
@@ -360,7 +360,7 @@ public class JetExpressionParsing extends AbstractJetParsing {
 
                 myBuilder.restoreJoiningComplexTokensState();
 
-                parsePrefixExpression();
+                parsePrefixExpression(false);
                 expression.done(PREFIX_EXPRESSION);
             }
             else {
@@ -596,10 +596,10 @@ public class JetExpressionParsing extends AbstractJetParsing {
         else if (at(DO_KEYWORD)) {
             parseDoWhile();
         }
-        else if (atSet(CLASS_KEYWORD, FUN_KEYWORD, VAL_KEYWORD,
-                       VAR_KEYWORD, TYPE_KEYWORD)) {
-            parseLocalDeclaration();
-        }
+        //else if (atSet(CLASS_KEYWORD, FUN_KEYWORD, VAL_KEYWORD,
+        //               VAR_KEYWORD, TYPE_KEYWORD)) {
+        //    parseLocalDeclaration();
+        //}
         else if (at(FIELD_IDENTIFIER)) {
             parseSimpleNameExpression();
         }

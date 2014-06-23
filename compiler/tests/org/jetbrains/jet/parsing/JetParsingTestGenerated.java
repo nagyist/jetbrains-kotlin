@@ -41,7 +41,8 @@ public class JetParsingTestGenerated extends AbstractJetParsingTest {
         }
         
         public void testAllFilesPresentInPsi() throws Exception {
-            JetTestUtils.assertAllTestsPresentByMetadata(this.getClass(), "org.jetbrains.jet.generators.tests.TestsPackage", new File("compiler/testData/psi"), Pattern.compile("^(.*)\\.kts?$"), true);
+            JetTestUtils.assertAllTestsPresentByMetadata(this.getClass(), "org.jetbrains.jet.generators.tests.TestsPackage",
+                                                         new File("compiler/testData/psi"), Pattern.compile("^(.*)\\.kts?$"), true);
         }
         
         @TestMetadata("AnnotatedExpressions.kt")
@@ -132,6 +133,11 @@ public class JetParsingTestGenerated extends AbstractJetParsingTest {
         @TestMetadata("ControlStructures.kt")
         public void testControlStructures() throws Exception {
             doParsingTest("compiler/testData/psi/ControlStructures.kt");
+        }
+        
+        @TestMetadata("DelegateExpression.kt")
+        public void testDelegateExpression() throws Exception {
+            doParsingTest("compiler/testData/psi/DelegateExpression.kt");
         }
         
         @TestMetadata("DoubleColon.kt")

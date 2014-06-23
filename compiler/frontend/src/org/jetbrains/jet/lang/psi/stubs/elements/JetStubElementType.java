@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2013 JetBrains s.r.o.
+ * Copyright 2010-2014 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -136,7 +136,7 @@ public abstract class JetStubElementType<StubT extends StubElement, PsiT extends
                 PsiTreeUtil.getParentOfType(declaration, JetWithExpressionInitializer.class, true, stopAt);
         if (withInitializer != null) {
             JetExpression initializer = withInitializer.getInitializer();
-            if (PsiTreeUtil.isAncestor(initializer, declaration, true)) {
+            if (PsiTreeUtil.isAncestor(initializer, declaration, false)) {
                 return false;
             }
         }
