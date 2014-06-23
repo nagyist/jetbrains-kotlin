@@ -7,15 +7,18 @@ import java.util.LinkedHashSet
 
 class ComplexSetJsTest : SetJsTest() {
     // hashSetOf returns ComlpexHashSet because it is Generic
-    override fun createEmptyMutableSet(): MutableSet<String> = hashSetOf<String>()
+    override fun createEmptyMutableSet(): MutableSet<String> = hashSetOf()
+    override fun createEmptyMutableSetWithNullableValues(): MutableSet<String?> = hashSetOf()
 }
 
 class PrimitiveSetJsTest : SetJsTest() {
-    override fun createEmptyMutableSet(): MutableSet<String> = HashSet<String>()
+    override fun createEmptyMutableSet(): MutableSet<String> = HashSet()
+    override fun createEmptyMutableSetWithNullableValues(): MutableSet<String?> = HashSet()
 }
 
 class LinkedHashSetTest : SetJsTest() {
-    override fun createEmptyMutableSet(): MutableSet<String> = LinkedHashSet<String>()
+    override fun createEmptyMutableSet(): MutableSet<String> = LinkedHashSet()
+    override fun createEmptyMutableSetWithNullableValues(): MutableSet<String?> = LinkedHashSet()
 }
 
 abstract class SetJsTest {
@@ -150,8 +153,20 @@ abstract class SetJsTest {
         }
     }
 
+    Test fun nullAsValue() {
+        val set = createEmptyMutableSetWithNullableValues()
+
+        assertTrue(set.isEmpty(), "Set should be empty")
+        set.add(null)
+        assertFalse(set.isEmpty(), "Set should not be empty")
+        assertTrue(set.contains(null), "Set should contains null")
+        assertTrue(set.remove(null), "Expected true when remove null")
+        assertTrue(set.isEmpty(), "Set should be empty")
+    }
+
     //Helpers
     abstract fun createEmptyMutableSet(): MutableSet<String>
+    abstract fun createEmptyMutableSetWithNullableValues(): MutableSet<String?>
 
     fun createTestMutableSet(): MutableSet<String> {
         val set = createEmptyMutableSet()
