@@ -174,14 +174,15 @@ public class IncrementalCacheImpl(val baseDir: File): IncrementalCache {
         private fun getConstantsMap(bytes: ByteArray): Map<String, Any> {
             val result = HashMap<String, Any>()
 
-            ClassReader(bytes).accept(object : ClassVisitor(Opcodes.ASM5) {
+            // ASM constants are written as values because owning classes are processed by proguard
+            ClassReader(bytes).accept(object : ClassVisitor(262144 /* ASM4 */) {
                 override fun visitField(access: Int, name: String, desc: String, signature: String?, value: Any?): FieldVisitor? {
                     if (value != null) {
                         result[name] = value
                     }
                     return null
                 }
-            }, ClassReader.SKIP_CODE or ClassReader.SKIP_DEBUG or ClassReader.SKIP_FRAMES)
+            }, 7 /* skip all */)
 
             return result
         }
