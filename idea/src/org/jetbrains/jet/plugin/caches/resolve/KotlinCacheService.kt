@@ -68,10 +68,9 @@ class KotlinCacheService(val project: Project) {
     }
 
     private fun globalResolveSessionProvider(platform: TargetPlatform, syntheticFile: JetFile? = null) = {
-        val allFiles = JetFilesProvider.getInstance(project).allInScope(GlobalSearchScope.allScope(project))
+        val syntheticFiles = syntheticFile?.let { listOf(it) }.orEmpty()
 
-        val files = if (syntheticFile == null) allFiles else collectFilesForSyntheticFile(allFiles, syntheticFile)
-        val setup = AnalyzerFacadeProvider.getAnalyzerFacade(platform).createSetup(project, files)
+        val setup = AnalyzerFacadeProvider.getAnalyzerFacade(platform).createSetup(project, syntheticFiles, kotlinSourcesInProjectScope())
         val resolveSessionForBodies = ResolveSessionForBodies(project, setup.getLazyResolveSession())
         CachedValueProvider.Result.create(
                 SessionAndSetup(
@@ -152,7 +151,11 @@ class KotlinCacheService(val project: Project) {
         if (virtualFile == null) {
             return false
         }
-        return virtualFile in JetSourceFilterScope.kotlinSources(GlobalSearchScope.allScope(project))
+        return virtualFile in kotlinSourcesInProjectScope()
+    }
+
+    private fun kotlinSourcesInProjectScope(): GlobalSearchScope {
+        return JetSourceFilterScope.kotlinSources(GlobalSearchScope.allScope(project))
     }
 
     public fun <T> get(extension: CacheExtension<T>): T {
