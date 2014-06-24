@@ -86,6 +86,11 @@ public class BlackBoxWithJavaCodegenTestGenerated extends AbstractBlackBoxCodege
             doTestWithJava("compiler/testData/codegen/boxWithJava/callableReference/constructor.kt");
         }
         
+        @TestMetadata("fieldJavaClassExtendsKotlin.kt")
+        public void testFieldJavaClassExtendsKotlin() throws Exception {
+            doTestWithJava("compiler/testData/codegen/boxWithJava/callableReference/fieldJavaClassExtendsKotlin.kt");
+        }
+        
         @TestMetadata("publicFinalField.kt")
         public void testPublicFinalField() throws Exception {
             doTestWithJava("compiler/testData/codegen/boxWithJava/callableReference/publicFinalField.kt");
