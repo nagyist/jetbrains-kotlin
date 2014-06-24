@@ -535,7 +535,7 @@ public class JetControlFlowProcessor {
 
         private void generateArrayAccess(JetArrayAccessExpression arrayAccessExpression, @Nullable ResolvedCall<?> resolvedCall) {
             mark(arrayAccessExpression);
-            if (!checkAndGenerateCall(arrayAccessExpression, resolvedCall, true)) {
+            if (!checkAndGenerateCall(arrayAccessExpression, resolvedCall)) {
                 generateArrayAccessWithoutCall(arrayAccessExpression);
             }
         }
@@ -1197,7 +1197,7 @@ public class JetControlFlowProcessor {
         public void visitArrayAccessExpression(@NotNull JetArrayAccessExpression expression) {
             mark(expression);
             ResolvedCall<FunctionDescriptor> getMethodResolvedCall = trace.get(BindingContext.INDEXED_LVALUE_GET, expression);
-            if (!checkAndGenerateCall(expression, getMethodResolvedCall, true)) {
+            if (!checkAndGenerateCall(expression, getMethodResolvedCall)) {
                 generateArrayAccess(expression, getMethodResolvedCall);
             }
         }
@@ -1380,10 +1380,10 @@ public class JetControlFlowProcessor {
 
         private boolean generateCall(@Nullable JetExpression calleeExpression, boolean bindResultValue) {
             if (calleeExpression == null) return false;
-            return checkAndGenerateCall(calleeExpression, getResolvedCall(calleeExpression), bindResultValue);
+            return checkAndGenerateCall(calleeExpression, getResolvedCall(calleeExpression));
         }
 
-        private boolean checkAndGenerateCall(JetExpression calleeExpression, @Nullable ResolvedCall<?> resolvedCall, boolean bindResultValue) {
+        private boolean checkAndGenerateCall(JetExpression calleeExpression, @Nullable ResolvedCall<?> resolvedCall) {
             if (resolvedCall == null) {
                 builder.compilationError(calleeExpression, "No resolved call");
                 return false;
