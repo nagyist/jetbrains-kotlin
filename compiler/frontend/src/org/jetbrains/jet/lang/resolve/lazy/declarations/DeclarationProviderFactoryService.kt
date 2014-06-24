@@ -50,9 +50,9 @@ public abstract class DeclarationProviderFactoryService {
     }
     private class SyntheticFilesFilteringScope(syntheticFiles: Collection<JetFile>, baseScope: GlobalSearchScope) :
             DelegatingGlobalSearchScope(baseScope) {
-        val originals = syntheticFiles.mapTo(HashSet<VirtualFile>()) {
-            it.getOriginalFile().getVirtualFile().sure("Could not find virtual file for original for $it}")
-        }
+        val originals = syntheticFiles.map {
+            it.getOriginalFile().getVirtualFile()
+        }.filterNotNullTo(HashSet<VirtualFile>())
 
         override fun contains(file: VirtualFile): Boolean {
             if (file in originals) return false
