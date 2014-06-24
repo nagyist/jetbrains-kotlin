@@ -27,6 +27,7 @@ import java.util.Collection;
 
 public class PluginJetFilesProvider  {
 
+    @NotNull
     public static Collection<JetFile> allFilesInProject(@NotNull Project project) {
         return JetAllPackagesIndex.getInstance().get(FqName.ROOT.asString(), project, GlobalSearchScope.allScope(project));
     }
