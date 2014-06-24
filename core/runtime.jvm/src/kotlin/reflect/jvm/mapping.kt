@@ -31,6 +31,18 @@ public val KPackage.javaFacade: Class<*>
 
 
 
+public val KProperty<*>.javaGetter: Method?
+    get() = (this as? KPropertyImpl<*>)?.getter
+
+public val KMutableProperty<*>.javaSetter: Method?
+    get() = (this as? KMutablePropertyImpl<*>)?.setter
+
+public val KProperty<*>.javaField: Field?
+    get() = (this as? KPropertyImpl<*>)?.field
+
+
+// TODO: val KTopLevelProperty<*>.javaField: Field
+
 public val KTopLevelProperty<*>.javaGetter: Method
     get() = (this as KTopLevelPropertyImpl<*>).getter
 
