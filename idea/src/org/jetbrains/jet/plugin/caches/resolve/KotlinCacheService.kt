@@ -26,7 +26,6 @@ import com.intellij.psi.util.PsiModificationTracker
 import com.intellij.psi.util.CachedValueProvider
 import org.jetbrains.jet.lang.resolve.BindingContext
 import com.intellij.openapi.components.ServiceManager
-import org.jetbrains.jet.lang.resolve.java.JetFilesProvider
 import com.intellij.psi.search.GlobalSearchScope
 import org.jetbrains.jet.plugin.project.AnalyzerFacadeProvider
 import org.jetbrains.jet.plugin.project.TargetPlatform
@@ -34,7 +33,6 @@ import org.jetbrains.jet.plugin.project.TargetPlatform.*
 import org.jetbrains.jet.plugin.project.ResolveSessionForBodies
 import org.jetbrains.jet.plugin.project.TargetPlatformDetector
 import java.util.HashSet
-import org.jetbrains.jet.analyzer.AnalyzerFacade
 import org.jetbrains.jet.lang.psi.JetCodeFragment
 import org.jetbrains.jet.plugin.stubindex.JetSourceFilterScope
 

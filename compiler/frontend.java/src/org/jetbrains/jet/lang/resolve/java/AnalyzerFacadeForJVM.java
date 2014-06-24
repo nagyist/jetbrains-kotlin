@@ -111,7 +111,7 @@ public enum AnalyzerFacadeForJVM implements AnalyzerFacade {
                            GlobalSearchScope.filesScope(project, virtualFiles), trace, addBuiltIns).getLazyResolveSession();
     }
 
-    private static JvmSetup createSetup(
+    public static JvmSetup createSetup(
             @NotNull Project project,
             @NotNull Collection<JetFile> syntheticFiles,
             @NotNull GlobalSearchScope filesScope,
