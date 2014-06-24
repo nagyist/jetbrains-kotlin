@@ -48,6 +48,7 @@ public abstract class DeclarationProviderFactoryService {
         }
 
     }
+
     private class SyntheticFilesFilteringScope(syntheticFiles: Collection<JetFile>, baseScope: GlobalSearchScope) :
             DelegatingGlobalSearchScope(baseScope) {
         val originals = syntheticFiles.map {
