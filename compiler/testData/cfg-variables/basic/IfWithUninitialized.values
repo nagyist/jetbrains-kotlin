@@ -22,6 +22,6 @@ if (1 < 2) { use(b) } else { b = true }                      <v4>: *            
 == use ==
 fun use(vararg a: Any?) = a
 ---------------------
-    <v0>: {<: Array<Any?>}   NEW: magic(vararg a: Any?) -> <v0>
-a   <v1>: {<: Array<Any?>}   NEW: r(a) -> <v1>                 
+    <v0>: {<: Array<Any?>}   NEW: magic[FAKE_INITIALIZER](vararg a: Any?) -> <v0>
+a   <v1>: {<: Array<Any?>}   NEW: r(a) -> <v1>                                   
 =====================

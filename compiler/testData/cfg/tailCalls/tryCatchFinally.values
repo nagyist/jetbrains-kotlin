@@ -9,7 +9,7 @@ fun test() : Unit {
     }
 }
 ---------------------
-                                                                           <v1>: {<: Exception}   NEW: magic(any : Exception) -> <v1>                                                                
+                                                                           <v1>: {<: Exception}   NEW: magic[FAKE_INITIALIZER](any : Exception) -> <v1>                                              
 test()                                                                     <v0>: *                NEW: call(test, test) -> <v0>                                                                      
 { test() }                                                                 <v0>: *                COPY                                                                                               
 test()                                                                     <v2>: *                NEW: call(test, test) -> <v2>                                                                      

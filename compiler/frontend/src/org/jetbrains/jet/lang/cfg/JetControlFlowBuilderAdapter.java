@@ -72,9 +72,10 @@ public abstract class JetControlFlowBuilderAdapter implements JetControlFlowBuil
             @Nullable JetElement valueElement,
             @NotNull List<PseudoValue> inputValues,
             @NotNull Map<PseudoValue, TypePredicate> expectedTypes,
-            boolean synthetic
+            boolean synthetic,
+            @NotNull MagicKind kind
     ) {
-        return getDelegateBuilder().magic(instructionElement, valueElement, inputValues, expectedTypes, synthetic);
+        return getDelegateBuilder().magic(instructionElement, valueElement, inputValues, expectedTypes, synthetic, kind);
     }
 
     @NotNull

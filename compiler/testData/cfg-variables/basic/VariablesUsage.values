@@ -25,6 +25,6 @@ fun bar() {
 == use ==
 fun use(a: Int) = a
 ---------------------
-    <v0>: Int   NEW: magic(a: Int) -> <v0>
-a   <v1>: Int   NEW: r(a) -> <v1>         
+    <v0>: Int   NEW: magic[FAKE_INITIALIZER](a: Int) -> <v0>
+a   <v1>: Int   NEW: r(a) -> <v1>                           
 =====================
