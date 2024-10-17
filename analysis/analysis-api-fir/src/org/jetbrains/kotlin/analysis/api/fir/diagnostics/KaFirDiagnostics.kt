@@ -44,6 +44,7 @@ import org.jetbrains.kotlin.psi.KtBackingField
 import org.jetbrains.kotlin.psi.KtBinaryExpression
 import org.jetbrains.kotlin.psi.KtBinaryExpressionWithTypeRHS
 import org.jetbrains.kotlin.psi.KtCallExpression
+import org.jetbrains.kotlin.psi.KtCallableDeclaration
 import org.jetbrains.kotlin.psi.KtClass
 import org.jetbrains.kotlin.psi.KtClassLikeDeclaration
 import org.jetbrains.kotlin.psi.KtClassLiteralExpression
@@ -3899,6 +3900,11 @@ sealed interface KaFirDiagnostic<PSI : PsiElement> : KaDiagnosticWithPsi<PSI> {
 
     interface NotYetSupportedLocalInlineFunction : KaFirDiagnostic<KtDeclaration> {
         override val diagnosticClass get() = NotYetSupportedLocalInlineFunction::class
+    }
+
+    interface PropertyHidesJavaField : KaFirDiagnostic<KtCallableDeclaration> {
+        override val diagnosticClass get() = PropertyHidesJavaField::class
+        val hidden: KaVariableSymbol
     }
 
     interface JavaTypeMismatch : KaFirDiagnostic<KtExpression> {
