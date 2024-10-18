@@ -55,6 +55,24 @@ public class LibraryGetOrBuildFirTestGenerated extends AbstractLibraryGetOrBuild
   }
 
   @Test
+  @TestMetadata("multiFieldValueClass.kt")
+  public void testMultiFieldValueClass() {
+    runTest("analysis/low-level-api-fir/testData/getOrBuildFirBinary/multiFieldValueClass.kt");
+  }
+
+  @Test
+  @TestMetadata("multiFieldValueClassWithTypeAlias.kt")
+  public void testMultiFieldValueClassWithTypeAlias() {
+    runTest("analysis/low-level-api-fir/testData/getOrBuildFirBinary/multiFieldValueClassWithTypeAlias.kt");
+  }
+
+  @Test
+  @TestMetadata("nestedValueClass.kt")
+  public void testNestedValueClass() {
+    runTest("analysis/low-level-api-fir/testData/getOrBuildFirBinary/nestedValueClass.kt");
+  }
+
+  @Test
   @TestMetadata("parameter.kt")
   public void testParameter() {
     runTest("analysis/low-level-api-fir/testData/getOrBuildFirBinary/parameter.kt");
@@ -112,6 +130,42 @@ public class LibraryGetOrBuildFirTestGenerated extends AbstractLibraryGetOrBuild
   @TestMetadata("unsignedConst.kt")
   public void testUnsignedConst() {
     runTest("analysis/low-level-api-fir/testData/getOrBuildFirBinary/unsignedConst.kt");
+  }
+
+  @Test
+  @TestMetadata("valueClassWithAnotherValueClass.kt")
+  public void testValueClassWithAnotherValueClass() {
+    runTest("analysis/low-level-api-fir/testData/getOrBuildFirBinary/valueClassWithAnotherValueClass.kt");
+  }
+
+  @Test
+  @TestMetadata("valueClassWithMultiFieldValueClass.kt")
+  public void testValueClassWithMultiFieldValueClass() {
+    runTest("analysis/low-level-api-fir/testData/getOrBuildFirBinary/valueClassWithMultiFieldValueClass.kt");
+  }
+
+  @Test
+  @TestMetadata("valueClassWithNestedClass.kt")
+  public void testValueClassWithNestedClass() {
+    runTest("analysis/low-level-api-fir/testData/getOrBuildFirBinary/valueClassWithNestedClass.kt");
+  }
+
+  @Test
+  @TestMetadata("valueClassWithNullableMultiFieldValueClass.kt")
+  public void testValueClassWithNullableMultiFieldValueClass() {
+    runTest("analysis/low-level-api-fir/testData/getOrBuildFirBinary/valueClassWithNullableMultiFieldValueClass.kt");
+  }
+
+  @Test
+  @TestMetadata("valueClassWithParameterizedAlias.kt")
+  public void testValueClassWithParameterizedAlias() {
+    runTest("analysis/low-level-api-fir/testData/getOrBuildFirBinary/valueClassWithParameterizedAlias.kt");
+  }
+
+  @Test
+  @TestMetadata("valueClassWithTypeAliasOnAnotherValueClass.kt")
+  public void testValueClassWithTypeAliasOnAnotherValueClass() {
+    runTest("analysis/low-level-api-fir/testData/getOrBuildFirBinary/valueClassWithTypeAliasOnAnotherValueClass.kt");
   }
 
   @Nested

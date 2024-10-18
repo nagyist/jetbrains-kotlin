@@ -15225,6 +15225,18 @@ public class DiagnosticCompilerTestFE10TestdataTestGenerated extends AbstractDia
           }
 
           @Test
+          @TestMetadata("runtimeCrashOnInnerWithImplicitInArgument.kt")
+          public void testRuntimeCrashOnInnerWithImplicitInArgument() {
+            runTest("compiler/testData/diagnostics/tests/generics/innerClasses/implicitArguments/runtimeCrashOnInnerWithImplicitInArgument.kt");
+          }
+
+          @Test
+          @TestMetadata("runtimeCrashOnInnerWithImplicitOutArgument.kt")
+          public void testRuntimeCrashOnInnerWithImplicitOutArgument() {
+            runTest("compiler/testData/diagnostics/tests/generics/innerClasses/implicitArguments/runtimeCrashOnInnerWithImplicitOutArgument.kt");
+          }
+
+          @Test
           @TestMetadata("secondLevelDepth.kt")
           public void testSecondLevelDepth() {
             runTest("compiler/testData/diagnostics/tests/generics/innerClasses/implicitArguments/secondLevelDepth.kt");
@@ -17761,6 +17773,12 @@ public class DiagnosticCompilerTestFE10TestdataTestGenerated extends AbstractDia
         @TestMetadata("kt52782.kt")
         public void testKt52782() {
           runTest("compiler/testData/diagnostics/tests/inference/capturedTypes/kt52782.kt");
+        }
+
+        @Test
+        @TestMetadata("kt72177.kt")
+        public void testKt72177() {
+          runTest("compiler/testData/diagnostics/tests/inference/capturedTypes/kt72177.kt");
         }
 
         @Test

@@ -415,28 +415,35 @@ internal fun PhaseEngine<NativeGenerationState>.runBackendCodegen(module: IrModu
  */
 private fun PhaseEngine<NativeGenerationState>.runCodegen(module: IrModuleFragment, irBuiltIns: IrBuiltIns) {
     val optimize = context.shouldOptimize()
+    val enablePreCodegenInliner = context.config.preCodegenInlineThreshold != 0U && optimize
     module.files.forEach {
         runPhase(ReturnsInsertionPhase, it)
-    }
-    val moduleDFG = runPhase(BuildDFGPhase, module, disable = !optimize)
-    val devirtualizationAnalysisResults = runPhase(DevirtualizationAnalysisPhase, DevirtualizationAnalysisInput(module, moduleDFG), disable = !optimize)
-    val dceResult = runPhase(DCEPhase, DCEInput(module, moduleDFG, devirtualizationAnalysisResults), disable = !optimize)
-    runPhase(RemoveRedundantCallsToStaticInitializersPhase, RedundantCallsInput(moduleDFG, devirtualizationAnalysisResults, module), disable = !optimize)
-    runPhase(DevirtualizationPhase, DevirtualizationInput(module, devirtualizationAnalysisResults), disable = !optimize)
-    // Have to run after link dependencies phase, because fields from dependencies can be changed during lowerings.
-    // Inline accessors only in optimized builds due to separate compilation and possibility to get broken debug information.
-    module.files.forEach {
+        // Have to run after link dependencies phase, because fields from dependencies can be changed during lowerings.
+        // Inline accessors only in optimized builds due to separate compilation and possibility to get broken debug information.
         runPhase(PropertyAccessorInlinePhase, it, disable = !optimize)
         runPhase(InlineClassPropertyAccessorsPhase, it, disable = !optimize)
+    }
+    val moduleDFG = runPhase(BuildDFGPhase, module, disable = !optimize)
+    runPhase(RemoveRedundantCallsToStaticInitializersPhase, RedundantCallsInput(moduleDFG, module), disable = !enablePreCodegenInliner)
+    runPhase(PreCodegenInlinerPhase, PreCodegenInlinerInput(module, moduleDFG), disable = !enablePreCodegenInliner)
+    runPhase(DevirtualizationAnalysisPhase, DevirtualizationAnalysisInput(module, moduleDFG), disable = !optimize)
+    // KT-72336: This is more optimal but contradicts with the pre-codegen inliner.
+    runPhase(RemoveRedundantCallsToStaticInitializersPhase, RedundantCallsInput(moduleDFG, module), disable = enablePreCodegenInliner || !optimize)
+    runPhase(DevirtualizationPhase, DevirtualizationInput(module, moduleDFG), disable = !optimize)
+    module.files.forEach {
         runPhase(RedundantCoercionsCleaningPhase, it)
         // depends on redundantCoercionsCleaningPhase
         runPhase(UnboxInlinePhase, it, disable = !optimize)
-
+    }
+    runPhase(PreCodegenInlinerPhase, PreCodegenInlinerInput(module, moduleDFG), disable = !enablePreCodegenInliner)
+    val dceResult = runPhase(DCEPhase, DCEInput(module, moduleDFG), disable = !optimize)
+    module.files.forEach {
+        runPhase(CoroutinesVarSpillingPhase, it)
     }
     runPhase(CreateLLVMDeclarationsPhase, module)
     runPhase(GHAPhase, module, disable = !optimize)
     runPhase(RTTIPhase, RTTIInput(module, dceResult))
-    val lifetimes = runPhase(EscapeAnalysisPhase, EscapeAnalysisInput(module, moduleDFG, devirtualizationAnalysisResults), disable = !optimize)
+    val lifetimes = runPhase(EscapeAnalysisPhase, EscapeAnalysisInput(module, moduleDFG), disable = !optimize)
     runPhase(CodegenPhase, CodegenInput(module, irBuiltIns, lifetimes))
 }
 

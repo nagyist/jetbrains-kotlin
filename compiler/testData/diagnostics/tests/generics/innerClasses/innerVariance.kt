@@ -1,4 +1,3 @@
-// FIR_IDENTICAL
 // DIAGNOSTICS: -UNUSED_PARAMETER
 class Outer<out E, in F> {
     inner class Inner {
@@ -8,8 +7,6 @@ class Outer<out E, in F> {
         fun unsafe4(): Collection<<!TYPE_VARIANCE_CONFLICT_ERROR!>F<!>>? = null
     }
 
-    // Should be errors
-    // Refinement of variance checker is needed
     fun foo(x: Inner) {}
     fun bar(): Inner? = null
 }

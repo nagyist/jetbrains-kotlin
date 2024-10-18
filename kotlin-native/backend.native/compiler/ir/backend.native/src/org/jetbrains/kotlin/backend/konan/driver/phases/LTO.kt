@@ -49,25 +49,43 @@ internal data class DevirtualizationAnalysisInput(
         get() = irModule
 }
 
-internal val DevirtualizationAnalysisPhase = createSimpleNamedCompilerPhase<NativeGenerationState, DevirtualizationAnalysisInput, DevirtualizationAnalysis.AnalysisResult>(
+internal val DevirtualizationAnalysisPhase = createSimpleNamedCompilerPhase<NativeGenerationState, DevirtualizationAnalysisInput>(
         name = "DevirtualizationAnalysis",
         preactions = getDefaultIrActions(),
         postactions = getDefaultIrActions(),
-        outputIfNotEnabled = { _, _, _, _ ->
-            DevirtualizationAnalysis.AnalysisResult(
-                    emptyMap(),
-                    DevirtualizationAnalysis.DevirtualizationAnalysisImpl.EmptyTypeHierarchy
-            )
-        },
         op = { generationState, (irModule, moduleDFG) ->
             DevirtualizationAnalysis.run(generationState.context, irModule, moduleDFG)
+        }
+)
+
+internal data class PreCodegenInlinerInput(
+        val irModule: IrModuleFragment,
+        val moduleDFG: ModuleDFG,
+) : KotlinBackendIrHolder {
+    override val kotlinIr: IrElement
+        get() = irModule
+}
+
+internal val PreCodegenInlinerPhase = createSimpleNamedCompilerPhase<NativeGenerationState, PreCodegenInlinerInput>(
+        name = "PreCodegenInliner",
+        preactions = getDefaultIrActions(),
+        postactions = getDefaultIrActions(),
+        op = { generationState, (irModule, moduleDFG) ->
+            val context = generationState.context
+            val callGraph = CallGraphBuilder(
+                    context,
+                    irModule,
+                    moduleDFG,
+                    devirtualizedCallSitesUnfoldFactor = -1,
+                    nonDevirtualizedCallSitesUnfoldFactor = -1,
+            ).build()
+            PreCodegenInliner(generationState, moduleDFG, callGraph).run()
         }
 )
 
 internal data class DCEInput(
         val irModule: IrModuleFragment,
         val moduleDFG: ModuleDFG,
-        val devirtualizationAnalysisResult: DevirtualizationAnalysis.AnalysisResult,
 ) : KotlinBackendIrHolder {
     override val kotlinIr: IrElement
         get() = irModule
@@ -80,13 +98,13 @@ internal val DCEPhase = createSimpleNamedCompilerPhase<NativeGenerationState, DC
         postactions = getDefaultIrActions(),
         op = { generationState, input ->
             val context = generationState.context
-            dce(context, input.irModule, input.moduleDFG, input.devirtualizationAnalysisResult)
+            dce(context, input.irModule, input.moduleDFG)
         }
 )
 
 internal data class DevirtualizationInput(
         val irModule: IrModuleFragment,
-        val devirtualizationAnalysisResult: DevirtualizationAnalysis.AnalysisResult
+        val moduleDFG: ModuleDFG,
 ) : KotlinBackendIrHolder {
     override val kotlinIr: IrElement
         get() = irModule
@@ -97,12 +115,7 @@ internal val DevirtualizationPhase = createSimpleNamedCompilerPhase<NativeGenera
         preactions = getDefaultIrActions(),
         postactions = getDefaultIrActions(),
         op = { generationState, input ->
-            val context = generationState.context
-            val devirtualizedCallSites = input.devirtualizationAnalysisResult.devirtualizedCallSites
-                    .asSequence()
-                    .filter { it.key.irCallSite != null }
-                    .associate { it.key.irCallSite!! to it.value }
-            DevirtualizationAnalysis.devirtualize(input.irModule, context, devirtualizedCallSites,
+            DevirtualizationAnalysis.devirtualize(input.irModule, input.moduleDFG, generationState,
                     DevirtualizationUnfoldFactors.IR_DEVIRTUALIZED_VTABLE_CALL, DevirtualizationUnfoldFactors.IR_DEVIRTUALIZED_ITABLE_CALL)
         }
 )
@@ -110,7 +123,6 @@ internal val DevirtualizationPhase = createSimpleNamedCompilerPhase<NativeGenera
 internal data class EscapeAnalysisInput(
         val irModule: IrModuleFragment,
         val moduleDFG: ModuleDFG,
-        val devirtualizationAnalysisResult: DevirtualizationAnalysis.AnalysisResult,
 ) : KotlinBackendIrHolder {
     override val kotlinIr: IrElement
         get() = irModule
@@ -142,7 +154,6 @@ internal val EscapeAnalysisPhase = createSimpleNamedCompilerPhase<NativeGenerati
                     context,
                     input.irModule,
                     input.moduleDFG,
-                    input.devirtualizationAnalysisResult,
                     DevirtualizationUnfoldFactors.DFG_DEVIRTUALIZED_CALL,
                     nonDevirtualizedCallSitesUnfoldFactor
             ).build()
@@ -153,7 +164,6 @@ internal val EscapeAnalysisPhase = createSimpleNamedCompilerPhase<NativeGenerati
 
 internal data class RedundantCallsInput(
         val moduleDFG: ModuleDFG,
-        val devirtualizationAnalysisResult: DevirtualizationAnalysis.AnalysisResult,
         val irModule: IrModuleFragment,
 ) : KotlinBackendIrHolder {
     override val kotlinIr: IrElement
@@ -172,7 +182,6 @@ internal val RemoveRedundantCallsToStaticInitializersPhase = createSimpleNamedCo
                     context,
                     input.irModule,
                     moduleDFG,
-                    input.devirtualizationAnalysisResult,
                     devirtualizedCallSitesUnfoldFactor = Int.MAX_VALUE,
                     nonDevirtualizedCallSitesUnfoldFactor = Int.MAX_VALUE
             ).build()
